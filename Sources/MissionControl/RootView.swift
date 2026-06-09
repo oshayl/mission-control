@@ -6,13 +6,14 @@ import SwiftUI
 struct RootView: View {
     @EnvironmentObject var store: DataStore
     @State private var showCommandPalette = false
+    @State private var searchFocused: Bool = false
 
     var body: some View {
         VStack(spacing: 0) {
             HeaderView()
                 .environmentObject(store)
             Divider().background(MC.hairline)
-            FilterBar()
+            FilterBar(searchFocused: $searchFocused)
                 .environmentObject(store)
             Divider().background(MC.hairline)
             FilterChips()
@@ -52,6 +53,10 @@ struct RootView: View {
         .sheet(isPresented: $showCommandPalette) {
             CommandPalette(isOpen: $showCommandPalette)
                 .environmentObject(store)
+        }
+        .onKeyPress("/") {
+            searchFocused = true
+            return .handled
         }
         .onKeyPress("k", phases: .down) { _ in
             if NSEvent.modifierFlags.contains(.command) {
@@ -187,6 +192,8 @@ struct HeaderView: View {
 
 struct FilterBar: View {
     @EnvironmentObject var store: DataStore
+    @Binding var searchFocused: Bool
+    @FocusState private var isFocused: Bool
 
     var body: some View {
         HStack(spacing: 8) {
@@ -197,6 +204,8 @@ struct FilterBar: View {
             TextField("Search", text: $store.search)
                 .textFieldStyle(.plain)
                 .font(.system(size: 13))
+                .focused($isFocused)
+                .onChange(of: isFocused) { _, new in searchFocused = new }
             if !store.search.isEmpty {
                 Button {
                     store.search = ""
@@ -219,10 +228,13 @@ struct FilterBar: View {
                     .frame(width: 20, height: 20)
             }
             .buttonStyle(.plain)
-            .help("Add client")
+            .help("Add client (⌘N)")
         }
         .padding(.horizontal, MC.pad)
         .padding(.vertical, 8)
+        .onChange(of: searchFocused) { _, want in
+            if want { isFocused = true }
+        }
     }
 }
 
