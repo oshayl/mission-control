@@ -49,6 +49,17 @@ struct CommandPalette: View {
                     NotificationsManager.shared.scheduleFollowUp(client: c, at: due, message: c.nextAction ?? "Check in with \(c.displayName)")
                 }))
             }
+            if let last = c.lastInvoiceAmount, last > 0 {
+                cmds.append(Command(title: "Re-send invoice to \(c.displayName)", subtitle: "$\(Int(last))", system: "dollarsign.circle.fill", tint: MC.statusLead, section: "Invoice", action: {
+                    let draft = InvoiceManager.shared.createDraft(for: c, description: c.nextAction ?? "Services", amount: last)
+                    InvoiceManager.shared.save(draft: draft)
+                }))
+            } else {
+                cmds.append(Command(title: "Send invoice to \(c.displayName)", subtitle: "Create draft", system: "dollarsign.circle.fill", tint: MC.statusLead, section: "Invoice", action: {
+                    let draft = InvoiceManager.shared.createDraft(for: c, description: c.nextAction ?? "Services", amount: 500)
+                    InvoiceManager.shared.save(draft: draft)
+                }))
+            }
         }
 
         // Global
@@ -71,7 +82,7 @@ struct CommandPalette: View {
 
     private var grouped: [(String, [Command])] {
         let groups = Dictionary(grouping: filtered, by: { $0.section })
-        return ["Clients", "Actions", "Schedule"].compactMap { name in
+        return ["Clients", "Actions", "Schedule", "Invoice"].compactMap { name in
             guard let g = groups[name], !g.isEmpty else { return nil }
             return (name, g)
         }

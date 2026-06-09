@@ -167,6 +167,18 @@ struct ClientDetail: View {
                 }
             }
             Spacer()
+            Button {
+                let amt = client.lastInvoiceAmount ?? 500
+                let desc = client.nextAction ?? "Services"
+                _ = InvoiceManager.shared.createDraft(for: client, description: desc, amount: amt)
+                client.lastInvoice = Date()
+                client.lastInvoiceAmount = amt
+                client.lastInvoiceStatus = "draft"
+                store.upsert(client)
+            } label: {
+                Label("Invoice", systemImage: "dollarsign.circle")
+            }
+            .buttonStyle(MCButtonStyle(variant: .secondary))
             if !client.isStale {
                 Button {
                     client.lastContact = Date()
