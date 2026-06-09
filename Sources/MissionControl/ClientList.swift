@@ -7,70 +7,123 @@ struct ClientList: View {
     @EnvironmentObject var store: DataStore
     let onSelect: (Client) -> Void
     @State private var hoverID: UUID? = nil
+    @State private var keyboardSelectedID: UUID? = nil
+
+    private var effectiveSelection: UUID? {
+        store.selectedClientID ?? keyboardSelectedID
+    }
 
     var body: some View {
         VStack(spacing: 0) {
             if store.filteredClients.isEmpty {
                 EmptyState()
             } else {
-                ScrollView {
-                    LazyVStack(spacing: 0) {
-                        ForEach(store.filteredClients) { c in
-                            ClientRow(
-                                client: c,
-                                isHovered: hoverID == c.id,
-                                isSelected: store.selectedClientID == c.id,
-                                isBulkSelected: store.bulkSelectedIDs.contains(c.id)
-                            )
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                if NSEvent.modifierFlags.contains(.command) {
-                                    if store.bulkSelectedIDs.contains(c.id) {
-                                        store.bulkSelectedIDs.remove(c.id)
-                                    } else {
-                                        store.bulkSelectedIDs.insert(c.id)
-                                    }
-                                } else {
-                                    onSelect(c)
-                                }
-                            }
-                            .onHover { hoverID = $0 ? c.id : (hoverID == c.id ? nil : hoverID) }
-                            .contextMenu {
-                                Button("Open") { onSelect(c) }
-                                Button("Mark Contacted Now") {
-                                    if let i = store.data.clients.firstIndex(where: { $0.id == c.id }) {
-                                        store.data.clients[i].lastContact = Date()
-                                    }
-                                }
-                                Button("Snooze 7 Days") {
-                                    if let i = store.data.clients.firstIndex(where: { $0.id == c.id }) {
-                                        store.data.clients[i].lastContact = Calendar.current.date(byAdding: .day, value: -7, to: Date())
-                                    }
-                                }
-                                Divider()
-                                if let phone = c.phone, !phone.isEmpty {
-                                    Button("Call \(phone)") { openTel(phone) }
-                                }
-                                if let im = c.imessageHandle, !im.isEmpty {
-                                    Button("iMessage") { openIMessage(to: im) }
-                                }
-                                if let em = c.email, !em.isEmpty {
-                                    Button("Email") { openMail(to: em) }
-                                }
-                                Divider()
-                                Button(role: .destructive) {
-                                    store.delete(id: c.id)
-                                } label: { Text("Delete") }
-                            }
-                            Divider().background(MC.hairline).padding(.leading, 44)
-                        }
-                    }
-                }
+                clientScrollView
             }
             if !store.bulkSelectedIDs.isEmpty {
                 BulkActionBar().environmentObject(store)
             }
         }
+        .focusable()
+        .onKeyPress(.upArrow) { moveSelection(by: -1); return .handled }
+        .onKeyPress(.downArrow) { moveSelection(by: 1); return .handled }
+        .onKeyPress(.return) {
+            if let id = keyboardSelectedID, let c = store.filteredClients.first(where: { $0.id == id }) {
+                onSelect(c)
+            }
+            return .handled
+        }
+        .onAppear {
+            if keyboardSelectedID == nil {
+                keyboardSelectedID = store.filteredClients.first?.id
+            }
+        }
+    }
+
+    private var clientScrollView: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    ForEach(store.filteredClients) { c in
+                        clientRowView(c)
+                        Divider().background(MC.hairline).padding(.leading, 44)
+                    }
+                }
+            }
+            .onChange(of: keyboardSelectedID) { _, new in
+                if let id = new {
+                    withAnimation(.easeOut(duration: 0.12)) {
+                        proxy.scrollTo(id, anchor: .center)
+                    }
+                }
+            }
+        }
+    }
+
+    private func clientRowView(_ c: Client) -> some View {
+        ClientRow(
+            client: c,
+            isHovered: hoverID == c.id,
+            isSelected: effectiveSelection == c.id,
+            isBulkSelected: store.bulkSelectedIDs.contains(c.id)
+        )
+        .id(c.id)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if NSEvent.modifierFlags.contains(.command) {
+                keyboardSelectedID = c.id
+                if store.bulkSelectedIDs.contains(c.id) {
+                    store.bulkSelectedIDs.remove(c.id)
+                } else {
+                    store.bulkSelectedIDs.insert(c.id)
+                }
+            } else {
+                keyboardSelectedID = c.id
+                onSelect(c)
+            }
+        }
+        .onHover { hoverID = $0 ? c.id : (hoverID == c.id ? nil : hoverID) }
+        .contextMenu { rowContextMenu(c) }
+    }
+
+    @ViewBuilder
+    private func rowContextMenu(_ c: Client) -> some View {
+        Button("Open") { onSelect(c) }
+        Button("Mark Contacted Now") {
+            if let i = store.data.clients.firstIndex(where: { $0.id == c.id }) {
+                store.data.clients[i].lastContact = Date()
+            }
+        }
+        Button("Snooze 7 Days") {
+            if let i = store.data.clients.firstIndex(where: { $0.id == c.id }) {
+                store.data.clients[i].lastContact = Calendar.current.date(byAdding: .day, value: -7, to: Date())
+            }
+        }
+        Divider()
+        if let phone = c.phone, !phone.isEmpty {
+            Button("Call \(phone)") { openTel(phone) }
+        }
+        if let im = c.imessageHandle, !im.isEmpty {
+            Button("iMessage") { openIMessage(to: im) }
+        }
+        if let em = c.email, !em.isEmpty {
+            Button("Email") { openMail(to: em) }
+        }
+        Divider()
+        Button(role: .destructive) {
+            store.delete(id: c.id)
+        } label: { Text("Delete") }
+    }
+
+    private func moveSelection(by delta: Int) {
+        let list = store.filteredClients
+        guard !list.isEmpty else { return }
+        let currentIndex = list.firstIndex(where: { $0.id == keyboardSelectedID }) ?? -1
+        let raw = currentIndex + delta
+        let lo = 0
+        let hi = list.count - 1
+        let next = min(max(raw, lo), hi)
+        keyboardSelectedID = list[next].id
     }
 }
 
@@ -159,7 +212,11 @@ struct ClientRow: View {
 
     private var secondary: String {
         if let n = client.nextAction, !n.isEmpty { return n }
-        if let last = client.lastContact { return "Last contact \(relative(last))" }
+        if let last = client.lastContact {
+            let f = RelativeDateTimeFormatter()
+            f.unitsStyle = .abbreviated
+            return "Last contact \(f.localizedString(for: last, relativeTo: Date()))"
+        }
         return "Never contacted"
     }
 
@@ -170,6 +227,13 @@ struct ClientRow: View {
             else if isHovered { MC.rowHover }
             else { Color.clear }
         }
+    }
+
+    private func currency(_ amt: Double) -> String {
+        let f = NumberFormatter()
+        f.numberStyle = .currency
+        f.maximumFractionDigits = 0
+        return f.string(from: NSNumber(value: amt)) ?? "$\(Int(amt))"
     }
 
     private func daysLabel(_ d: Int) -> String {
@@ -274,9 +338,24 @@ func relative(_ date: Date) -> String {
     return f.localizedString(for: date, relativeTo: Date())
 }
 
-func currency(_ value: Double) -> String {
-    let f = NumberFormatter()
-    f.numberStyle = .currency
-    f.maximumFractionDigits = 0
-    return f.string(from: NSNumber(value: value)) ?? "$\(Int(value))"
+enum Formatters {
+    static func relative(_ date: Date) -> String {
+        let f = RelativeDateTimeFormatter()
+        f.unitsStyle = .abbreviated
+        return f.localizedString(for: date, relativeTo: Date())
+    }
 }
+
+    private func amountString(_ amt: Double) -> String {
+        let f = NumberFormatter()
+        f.numberStyle = .currency
+        f.maximumFractionDigits = 0
+        return f.string(from: NSNumber(value: amt)) ?? "$\(Int(amt))"
+    }
+
+extension Comparable {
+    func clampedTo(_ range: ClosedRange<Self>) -> Self {
+        min(max(self, range.lowerBound), range.upperBound)
+    }
+}
+

@@ -30,9 +30,14 @@ final class IMessageReader {
     func lastMessage(with handle: String) -> IMessageContact? {
         let normalized = normalizeHandle(handle)
         guard FileManager.default.fileExists(atPath: chatDBPath) else { return nil }
+        // chat.db can be locked by Messages.app while it's writing.
+        // Use a read-only mode and tolerate SQLITE_BUSY.
         var db: OpaquePointer?
         defer { if db != nil { sqlite3_close(db) } }
-        guard sqlite3_open(chatDBPath, &db) == SQLITE_OK else { return nil }
+        let flags = SQLITE_OPEN_READONLY | SQLITE_OPEN_NOMUTEX
+        guard sqlite3_open_v2(chatDBPath, &db, flags, nil) == SQLITE_OK else { return nil }
+        // 5 second busy timeout to wait for Messages.app to release.
+        sqlite3_busy_timeout(db, 5000)
         return lastMessageAlt(db: db, handle: normalized)
     }
 
