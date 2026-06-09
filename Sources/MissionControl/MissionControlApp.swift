@@ -64,6 +64,7 @@ struct MissionControlApp: App {
         menu.addItem(withTitle: "Command Palette…", action: #selector(openCommandPalette), keyEquivalent: "k")
         menu.addItem(NSMenuItem.separator())
         menu.addItem(withTitle: "Save Now", action: #selector(saveNow), keyEquivalent: "s")
+        menu.addItem(withTitle: "Run Backup Now", action: #selector(runBackup), keyEquivalent: "")
         menu.addItem(withTitle: "Reload from iCloud", action: #selector(reloadFromCloud), keyEquivalent: "r")
         menu.addItem(withTitle: "Preferences…", action: #selector(openSettings), keyEquivalent: ",")
         menu.addItem(NSMenuItem.separator())
@@ -106,6 +107,9 @@ struct MissionControlApp: App {
         // Start local webhook server for incoming leads (CRM integration)
         WebhookServer.shared.start(store: store)
 
+        // Daily backup on launch (in case a day was skipped, this catches it up)
+        BackupManager.shared.runDailyBackup()
+
         // Refresh badge
         updateBadge()
     }
@@ -125,6 +129,11 @@ struct MissionControlApp: App {
 
     @objc func saveNow() {
         store.save()
+        flashBadge()
+    }
+
+    @objc func runBackup() {
+        BackupManager.shared.runDailyBackup()
         flashBadge()
     }
 
