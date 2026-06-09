@@ -19,14 +19,8 @@ struct ClientDetail: View {
                 VStack(alignment: .leading, spacing: 20) {
                     statusSection
                     contactSection
-                    if let g = client.githubLogin, !g.isEmpty {
-                        githubSection(login: g)
-                    }
-                    if let lastMsg = store.lastIMessage(for: client) {
-                        iMessageSection(lastMsg: lastMsg)
-                    }
                     calendarSection
-                    activitySection
+                    activityStreamSection
                     notesSection
                     Spacer(minLength: 40)
                 }
@@ -151,52 +145,18 @@ struct ClientDetail: View {
         }
     }
 
-    // MARK: - GitHub
-
-    private func githubSection(login: String) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            sectionHeader("GitHub · @\(login)")
-            GitHubActivityView(login: login) {
-                await store.githubActivity(for: client)
-            }
-        }
-    }
-
-    // MARK: - iMessage
-
-    private func iMessageSection(lastMsg: IMessageContact) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            sectionHeader("Last iMessage")
-            HStack(alignment: .top, spacing: 8) {
-                Text(lastMsg.lastFromMe ? "You" : "Them")
-                    .font(.system(size: 10, weight: .semibold))
-                    .tracking(0.5)
-                    .foregroundStyle(MC.textTertiary)
-                    .frame(width: 32, alignment: .leading)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(lastMsg.lastMessageText)
-                        .font(.system(size: 12))
-                        .foregroundStyle(MC.textPrimary)
-                        .lineLimit(3)
-                    Text(lastMsg.lastMessageAt, style: .relative)
-                        .font(.system(size: 10))
-                        .foregroundStyle(MC.textTertiary)
-                }
-            }
-        }
-    }
-
     // MARK: - Calendar
 
     private var calendarSection: some View {
         CalendarEventView(client: client)
     }
 
-    // MARK: - Activity
+    // MARK: - Activity stream (interleaved)
 
-    private var activitySection: some View {
+    private var activityStreamSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             sectionHeader("Activity")
+            ActivityStream(client: client)
             HStack(spacing: 6) {
                 Picker("", selection: $newActivityKind) {
                     Text("Note").tag("note")
@@ -207,12 +167,11 @@ struct ClientDetail: View {
                 }
                 .labelsHidden()
                 .frame(width: 90)
-                TextField("Add entry", text: $newActivityText)
+                TextField("Log a quick note…", text: $newActivityText)
                     .textFieldStyle(MCFieldStyle())
                 Button {
                     guard !newActivityText.isEmpty else { return }
-                    let entry = ActivityEntry(timestamp: Date(), kind: newActivityKind, summary: newActivityText)
-                    client.activity.append(entry)
+                    client.activity.append(ActivityEntry(timestamp: Date(), kind: newActivityKind, summary: newActivityText))
                     newActivityText = ""
                     store.upsert(client)
                 } label: {
@@ -222,42 +181,7 @@ struct ClientDetail: View {
                 }
                 .buttonStyle(.plain)
             }
-            let entries = client.activity
-            if entries.isEmpty {
-                Text("No activity yet.")
-                    .font(.system(size: 11))
-                    .foregroundStyle(MC.textTertiary)
-            } else {
-                VStack(alignment: .leading, spacing: 0) {
-                    ForEach(entries.sorted(by: { $0.timestamp > $1.timestamp }).prefix(5)) { e in
-                        activityRow(e)
-                        if e.id != entries.sorted(by: { $0.timestamp > $1.timestamp }).prefix(5).last?.id {
-                            Divider().background(MC.hairline)
-                        }
-                    }
-                }
-            }
         }
-    }
-
-    private func activityRow(_ e: ActivityEntry) -> some View {
-        HStack(alignment: .top, spacing: 8) {
-            Text(e.kind.uppercased())
-                .font(.system(size: 9, weight: .semibold))
-                .tracking(0.5)
-                .foregroundStyle(MC.textTertiary)
-                .frame(width: 56, alignment: .leading)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(e.summary)
-                    .font(.system(size: 12))
-                    .foregroundStyle(MC.textPrimary)
-                    .lineLimit(2)
-                Text(e.timestamp, style: .relative)
-                    .font(.system(size: 10))
-                    .foregroundStyle(MC.textTertiary)
-            }
-        }
-        .padding(.vertical, 6)
     }
 
     // MARK: - Notes
