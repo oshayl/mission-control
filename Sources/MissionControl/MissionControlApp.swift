@@ -53,8 +53,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Popover hosting the root SwiftUI view
         popover = NSPopover()
         popover.behavior = .transient
-        popover.contentSize = NSSize(width: 420, height: 560)
+        popover.contentSize = NSSize(width: MC.popoverWidth, height: MC.popoverHeight)
         let host = NSHostingController(rootView: RootView().environmentObject(store))
+        host.view.translatesAutoresizingMaskIntoConstraints = false
         popover.contentViewController = host
 
         // Right-click menu on status item (for quit, refresh, etc.)

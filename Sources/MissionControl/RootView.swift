@@ -17,6 +17,8 @@ struct RootView: View {
             Divider().background(MC.hairline)
             FilterChips()
                 .environmentObject(store)
+            TodayHero()
+                .environmentObject(store)
             Divider().background(MC.hairline)
             if let selID = store.selectedClientID,
                let binding = bindingForClient(id: selID) {
@@ -66,41 +68,75 @@ struct RootView: View {
 
 struct HeaderView: View {
     @EnvironmentObject var store: DataStore
+    @State private var now = Date()
+    private let tick = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
 
     var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "scope")
-                .font(.system(size: 14, weight: .medium))
-                .foregroundStyle(MC.textPrimary)
-            Text("Mission Control")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(MC.textPrimary)
-            Spacer()
-            statsView
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Image(systemName: "scope")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundStyle(MC.textPrimary)
+                Spacer()
+                statsView
+            }
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(greeting)
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(MC.textPrimary)
+                        .tracking(-0.4)
+                    Text(dateString)
+                        .font(.system(size: 11, weight: .regular))
+                        .foregroundStyle(MC.textTertiary)
+                        .onReceive(tick) { _ in now = Date() }
+                }
+                Spacer()
+            }
         }
         .padding(.horizontal, MC.pad)
-        .padding(.vertical, 10)
+        .padding(.top, 12)
+        .padding(.bottom, 10)
+    }
+
+    private var greeting: String {
+        let hour = Calendar.current.component(.hour, from: now)
+        switch hour {
+        case 5..<12: return "Good morning, O'Shay"
+        case 12..<17: return "Good afternoon, O'Shay"
+        case 17..<22: return "Good evening, O'Shay"
+        default: return "Up late, O'Shay"
+        }
+    }
+
+    private var dateString: String {
+        let f = DateFormatter()
+        f.dateFormat = "EEEE, MMM d"
+        return f.string(from: now)
     }
 
     @ViewBuilder
     private var statsView: some View {
         let s = store.stats
-        HStack(spacing: 12) {
-            if s.stale > 0 {
-                statDot(count: s.stale, color: MC.stale, label: "stale")
-            }
+        HStack(spacing: 10) {
             if s.dueThisWeek > 0 {
-                statDot(count: s.dueThisWeek, color: MC.accent, label: "due")
+                statPill(count: s.dueThisWeek, color: MC.accent, label: "due")
             }
-            statDot(count: s.active, color: MC.statusActive, label: "active")
+            if s.stale > 0 {
+                statPill(count: s.stale, color: MC.stale, label: "stale")
+            }
+            statPill(count: s.active, color: MC.statusActive, label: "active")
         }
     }
 
-    private func statDot(count: Int, color: Color, label: String) -> some View {
+    private func statPill(count: Int, color: Color, label: String) -> some View {
         HStack(spacing: 4) {
-            Circle().fill(color).frame(width: 6, height: 6)
-            Text("\(count) \(label)")
-                .font(.system(size: 11))
+            Circle().fill(color).frame(width: 5, height: 5)
+            Text("\(count)")
+                .font(.system(size: 11, weight: .semibold, design: .rounded).monospacedDigit())
+                .foregroundStyle(MC.textSecondary)
+            Text(label)
+                .font(.system(size: 10, weight: .regular))
                 .foregroundStyle(MC.textTertiary)
         }
     }

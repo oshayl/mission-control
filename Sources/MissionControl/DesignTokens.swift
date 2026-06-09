@@ -30,9 +30,9 @@ enum MC {
     static let stale = Color.orange
 
     // Sizing
-    static let popoverWidth: CGFloat = 380
-    static let popoverHeight: CGFloat = 580
-    static let rowHeight: CGFloat = 44
+    static let popoverWidth: CGFloat = 400
+    static let popoverHeight: CGFloat = 620
+    static let rowHeight: CGFloat = 48
     static let cornerRadius: CGFloat = 0  // no rounding on cards
     static let chipCornerRadius: CGFloat = 4  // only for inline chips
 

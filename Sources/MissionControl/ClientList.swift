@@ -81,68 +81,86 @@ struct ClientRow: View {
     let isBulkSelected: Bool
 
     var body: some View {
-        HStack(alignment: .center, spacing: 10) {
-            if isBulkSelected {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 12))
-                    .foregroundStyle(MC.accent)
-                    .frame(width: 14)
-            } else {
-                Text(client.initials.uppercased())
-                    .font(.system(size: 11, weight: .semibold, design: .rounded))
-                    .foregroundStyle(MC.textSecondary)
-                    .frame(width: 24, height: 24)
-                    .background(
-                        RoundedRectangle(cornerRadius: 4)
-                            .stroke(MC.hairline, lineWidth: 1)
-                    )
-            }
-
-            VStack(alignment: .leading, spacing: 2) {
+        HStack(alignment: .center, spacing: 12) {
+            avatarBlock
+            VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
                     Text(client.displayName)
-                        .font(.system(size: 13, weight: .medium))
+                        .font(.system(size: 13.5, weight: .semibold))
                         .foregroundStyle(MC.textPrimary)
+                        .tracking(-0.2)
                         .lineLimit(1)
                     if client.nextActionDue != nil {
                         Image(systemName: "bell.fill")
                             .font(.system(size: 9))
+                            .foregroundStyle(MC.accent)
+                    }
+                    if let amt = client.lastInvoiceAmount, amt > 0 {
+                        Text(currency(amt))
+                            .font(.system(size: 10, weight: .medium, design: .rounded).monospacedDigit())
                             .foregroundStyle(MC.textTertiary)
                     }
                 }
-                Text(secondary)
-                    .font(.system(size: 11))
-                    .foregroundStyle(MC.textTertiary)
-                    .lineLimit(1)
+                HStack(spacing: 6) {
+                    Text(secondary)
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(MC.textTertiary)
+                        .lineLimit(1)
+                    if !client.tags.isEmpty {
+                        Text("·").font(.system(size: 11.5)).foregroundStyle(MC.textTertiary)
+                        Text(client.tags.prefix(2).map { "#\($0)" }.joined(separator: " "))
+                            .font(.system(size: 11))
+                            .foregroundStyle(MC.textTertiary)
+                            .lineLimit(1)
+                    }
+                }
             }
-
             Spacer(minLength: 8)
-
             VStack(alignment: .trailing, spacing: 2) {
                 if let d = client.daysSinceContact {
                     Text(daysLabel(d))
-                        .font(.system(size: 11, weight: .medium, design: .rounded).monospacedDigit())
+                        .font(.system(size: 11, weight: .semibold, design: .rounded).monospacedDigit())
                         .foregroundStyle(client.isStale ? MC.stale : MC.textTertiary)
                 }
-                statusLabel
+                Text(client.status.label.uppercased())
+                    .font(.system(size: 8.5, weight: .semibold))
+                    .tracking(0.8)
+                    .foregroundStyle(client.status.systemColor.opacity(0.85))
             }
         }
         .padding(.horizontal, MC.pad)
         .frame(height: MC.rowHeight)
         .background(rowBackground)
+        .contentShape(Rectangle())
+    }
+
+    @ViewBuilder
+    private var avatarBlock: some View {
+        if isBulkSelected {
+            ZStack {
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(MC.accent)
+                    .frame(width: 28, height: 28)
+                Image(systemName: "checkmark")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(.white)
+            }
+        } else {
+            Text(client.initials.uppercased())
+                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                .foregroundStyle(MC.textSecondary)
+                .frame(width: 28, height: 28)
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(MC.textPrimary.opacity(0.04))
+                )
+        }
     }
 
     private var secondary: String {
         if let n = client.nextAction, !n.isEmpty { return n }
         if let last = client.lastContact { return "Last contact \(relative(last))" }
         return "Never contacted"
-    }
-
-    private var statusLabel: some View {
-        Text(client.status.label.uppercased())
-            .font(.system(size: 9, weight: .semibold))
-            .tracking(0.5)
-            .foregroundStyle(client.status.systemColor)
     }
 
     private var rowBackground: some View {
@@ -155,7 +173,11 @@ struct ClientRow: View {
     }
 
     private func daysLabel(_ d: Int) -> String {
-        d == 0 ? "today" : "\(d)d"
+        switch d {
+        case 0: return "today"
+        case 1: return "1d"
+        default: return "\(d)d"
+        }
     }
 }
 
