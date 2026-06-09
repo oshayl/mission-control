@@ -31,6 +31,7 @@ struct RootView: View {
         }
         .frame(width: MC.popoverWidth, height: MC.popoverHeight)
         .background(MC.popoverBackground)
+        .animation(.easeOut(duration: 0.18), value: store.selectedClientID)
         .sheet(isPresented: $store.showAddSheet) {
             AddClientSheet(isPresented: $store.showAddSheet)
                 .environmentObject(store)
@@ -46,6 +47,27 @@ struct RootView: View {
         .onKeyPress("k", phases: .down) { _ in
             if NSEvent.modifierFlags.contains(.command) {
                 showCommandPalette = true
+                return .handled
+            }
+            return .ignored
+        }
+        .onKeyPress("n", phases: .down) { _ in
+            if NSEvent.modifierFlags.contains(.command) {
+                store.showAddSheet = true
+                return .handled
+            }
+            return .ignored
+        }
+        .onKeyPress(",", phases: .down) { _ in
+            if NSEvent.modifierFlags.contains(.command) {
+                store.showSettings = true
+                return .handled
+            }
+            return .ignored
+        }
+        .onKeyPress(.escape) {
+            if store.selectedClientID != nil {
+                store.selectedClientID = nil
                 return .handled
             }
             return .ignored

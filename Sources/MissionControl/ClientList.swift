@@ -184,20 +184,45 @@ struct ClientRow: View {
 struct EmptyState: View {
     @EnvironmentObject var store: DataStore
     var body: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "person.crop.circle")
-                .font(.system(size: 32, weight: .light))
-                .foregroundStyle(MC.textTertiary)
-            Text("No clients match")
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(MC.textPrimary)
-            Text("Add one with ⌘N or the + button.")
-                .font(.system(size: 11))
-                .foregroundStyle(MC.textTertiary)
-            Button("Add Client") { store.showAddSheet = true }
-                .buttonStyle(MCButtonStyle(variant: .primary))
+        VStack(spacing: 14) {
+            ZStack {
+                Circle()
+                    .stroke(MC.hairline, lineWidth: 1)
+                    .frame(width: 56, height: 56)
+                Image(systemName: "person.crop.circle")
+                    .font(.system(size: 28, weight: .ultraLight))
+                    .foregroundStyle(MC.textSecondary)
+            }
+            VStack(spacing: 4) {
+                Text(emptyTitle)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(MC.textPrimary)
+                Text(emptySubtitle)
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(MC.textTertiary)
+                    .multilineTextAlignment(.center)
+            }
+            if store.data.clients.isEmpty {
+                Button("Add your first client") { store.showAddSheet = true }
+                    .buttonStyle(MCButtonStyle(variant: .primary))
+            } else {
+                Button("Add another") { store.showAddSheet = true }
+                    .buttonStyle(MCButtonStyle(variant: .secondary))
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(32)
+    }
+
+    private var emptyTitle: String {
+        if store.search.isEmpty { return "No clients match" }
+        return "Nothing matches \"\(store.search)\""
+    }
+    private var emptySubtitle: String {
+        if store.data.clients.isEmpty {
+            return "Press ⌘N to add one, or use the + button above."
+        }
+        return "Try a different search, or add one with the + button."
     }
 }
 
