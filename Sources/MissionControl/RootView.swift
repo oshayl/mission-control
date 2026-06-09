@@ -5,6 +5,7 @@ import SwiftUI
 
 struct RootView: View {
     @EnvironmentObject var store: DataStore
+    @State private var showCommandPalette = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -28,6 +29,17 @@ struct RootView: View {
         .sheet(isPresented: $store.showAddSheet) {
             AddClientSheet(isPresented: $store.showAddSheet)
                 .environmentObject(store)
+        }
+        .sheet(isPresented: $showCommandPalette) {
+            CommandPalette(isOpen: $showCommandPalette)
+                .environmentObject(store)
+        }
+        .onKeyPress("k", phases: .down) { _ in
+            if NSEvent.modifierFlags.contains(.command) {
+                showCommandPalette = true
+                return .handled
+            }
+            return .ignored
         }
     }
 
