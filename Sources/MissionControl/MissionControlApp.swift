@@ -118,6 +118,7 @@ struct MissionControlApp: App {
     private var pulseObserver: AnyCancellable?
     private var pulseTimer: Timer?
     private var lastPulseAt: Date? = nil
+    private var compactMode: Bool = false
 
     @objc func showPopover() {
         guard let button = statusItem.button else { return }

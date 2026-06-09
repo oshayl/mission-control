@@ -177,6 +177,12 @@ struct SettingsView: View {
             await checkAuth()
             staleDays = Double(store.data.settings.staleDays)
             refreshBackups()
+            // Poll for webhook status (it's started async after AppDelegate launches)
+            for _ in 0..<10 {
+                webhookRunning = WebhookServer.shared.running
+                if webhookRunning { break }
+                try? await Task.sleep(nanoseconds: 200_000_000)
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .mcWebhookStatusChanged)) { _ in
             webhookRunning = WebhookServer.shared.running
