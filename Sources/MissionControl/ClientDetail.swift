@@ -29,6 +29,9 @@ struct ClientDetail: View {
                     // Activity stream
                     activityBlock
 
+                    // 30-day chart
+                    ActivityChart(client: client)
+
                     // Next action (only if set)
                     if let next = client.nextAction, !next.isEmpty {
                         nextActionBlock(next: next)
