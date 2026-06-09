@@ -10,6 +10,7 @@ final class ICloudWatcher {
     private var query: NSMetadataQuery?
     private var observer: NSObjectProtocol?
     private var debounceTimer: Timer?
+    private var startedAt: Date?
 
     private init() {}
 
@@ -38,13 +39,17 @@ final class ICloudWatcher {
         }
         // Silently absorb initial gathering updates — only act on changes after the
         // initial state is loaded, otherwise we trigger spurious reloads at launch.
-        q.gatheringThreshold = NSMetadataQueryGatheringThresholdOne
+        // (no gathering threshold API on macOS; debounce on the receiver side instead)
         q.start()
+        // Mark the current time so we can ignore any initial-fire updates.
+        self.startedAt = Date()
         self.query = q
         NSLog("ICloudWatcher: watching \(ubiquity.path)/Documents/mission.json")
     }
 
     private func debounce(onChange: @escaping () -> Void) {
+        // Ignore initial-fire updates that arrive in the first 1.5s after start.
+        if let startedAt, Date().timeIntervalSince(startedAt) < 1.5 { return }
         debounceTimer?.invalidate()
         debounceTimer = Timer.scheduledTimer(withTimeInterval: 0.6, repeats: false) { _ in
             DispatchQueue.main.async { onChange() }
