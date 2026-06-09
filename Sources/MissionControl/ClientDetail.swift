@@ -95,6 +95,9 @@ struct ClientDetail: View {
                         }
                     }
 
+                    // Calendar — next meeting
+                    CalendarEventView(client: client)
+
                     // Quick actions
                     HStack(spacing: 6) {
                         ActionButton(title: "iMessage", system: "message.fill") {

@@ -12,8 +12,7 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "MissionControl",
-            path: "Sources/MissionControl",
-            resources: []
+            path: "Sources/MissionControl"
         )
     ]
 )
