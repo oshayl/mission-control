@@ -459,21 +459,94 @@ struct ClientDetail: View {
     private var notesBlock: some View {
         VStack(alignment: .leading, spacing: 8) {
             sectionLabel("NOTES")
-            TextEditor(text: $client.notes)
-                .font(.system(size: 12))
-                .scrollContentBackground(.hidden)
-                .frame(minHeight: 100)
-                .padding(8)
-                .background(
-                    RoundedRectangle(cornerRadius: MC.chipCornerRadius)
-                        .fill(MC.textPrimary.opacity(0.03))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: MC.chipCornerRadius)
-                        .stroke(MC.hairline, lineWidth: 1)
-                )
-                .focused($notesFocused)
+            if notesFocused {
+                TextEditor(text: $client.notes)
+                    .font(.system(size: 12))
+                    .scrollContentBackground(.hidden)
+                    .frame(minHeight: 100)
+                    .padding(8)
+                    .background(
+                        RoundedRectangle(cornerRadius: MC.chipCornerRadius)
+                            .fill(MC.textPrimary.opacity(0.03))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: MC.chipCornerRadius)
+                            .stroke(MC.hairline, lineWidth: 1)
+                    )
+                    .focused($notesFocused)
+            } else if client.notes.isEmpty {
+                Button {
+                    notesFocused = true
+                } label: {
+                    Text("Add notes…")
+                        .font(.system(size: 12))
+                        .foregroundStyle(MC.textTertiary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(8)
+                }
+                .buttonStyle(.plain)
+            } else {
+                Button {
+                    notesFocused = true
+                } label: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        ForEach(Array(client.notes.split(separator: "\n", omittingEmptySubsequences: false).enumerated()), id: \.offset) { _, line in
+                            notesLineView(String(line))
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(8)
+                }
+                .buttonStyle(.plain)
+            }
+            Text("Tap to edit. Lines starting with # are headings, - are bullets, **bold** renders bold.")
+                .font(.system(size: 9.5))
+                .foregroundStyle(MC.textTertiary)
         }
+    }
+
+    @ViewBuilder
+    private func notesLineView(_ line: String) -> some View {
+        if line.hasPrefix("# ") {
+            Text(String(line.dropFirst(2)))
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(MC.textPrimary)
+        } else if line.hasPrefix("## ") {
+            Text(String(line.dropFirst(3)))
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(MC.textPrimary)
+        } else if line.hasPrefix("- ") || line.hasPrefix("* ") {
+            HStack(alignment: .top, spacing: 6) {
+                Text("•").foregroundStyle(MC.textTertiary)
+                Text(notesInline(String(line.dropFirst(2))))
+            }
+        } else {
+            Text(notesInline(line))
+        }
+    }
+
+    private func notesInline(_ s: String) -> AttributedString {
+        // Convert **bold** to a styled substring.
+        var out = AttributedString()
+        var rest = Substring(s)
+        while let openRange = rest.range(of: "**") {
+            out.append(AttributedString(String(rest[..<openRange.lowerBound])))
+            rest = rest[openRange.upperBound...]
+            if let closeRange = rest.range(of: "**") {
+                var bold = AttributedString(String(rest[..<closeRange.lowerBound]))
+                bold.font = .system(size: 12, weight: .semibold)
+                out.append(bold)
+                rest = rest[closeRange.upperBound...]
+            } else {
+                out.append(AttributedString("**" + rest))
+                rest = ""
+                break
+            }
+        }
+        out.append(AttributedString(String(rest)))
+        out.font = .system(size: 12)
+        out.foregroundColor = MC.textPrimary
+        return out
     }
 
     // MARK: - Danger
