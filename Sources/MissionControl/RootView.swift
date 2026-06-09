@@ -150,6 +150,16 @@ struct HeaderView: View {
     private var statsView: some View {
         let s = store.stats
         HStack(spacing: 10) {
+            if s.monthRevenue > 0 {
+                HStack(spacing: 3) {
+                    Text("$\(Int(s.monthRevenue))")
+                        .font(.system(size: 11, weight: .semibold, design: .rounded).monospacedDigit())
+                        .foregroundStyle(MC.textPrimary)
+                    Text("mo")
+                        .font(.system(size: 9, weight: .regular))
+                        .foregroundStyle(MC.textTertiary)
+                }
+            }
             if s.dueThisWeek > 0 {
                 statPill(count: s.dueThisWeek, color: MC.accent, label: "due")
             }

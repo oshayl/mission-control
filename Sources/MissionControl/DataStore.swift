@@ -322,7 +322,7 @@ final class DataStore: ObservableObject {
         return set.sorted()
     }
 
-    var stats: (active: Int, stale: Int, leads: Int, shipped: Int, dueThisWeek: Int) {
+    var stats: (active: Int, stale: Int, leads: Int, shipped: Int, dueThisWeek: Int, monthRevenue: Double) {
         let active = data.clients.filter { $0.status == .active }.count
         let stale = data.clients.filter { $0.isStale && $0.status == .active }.count
         let leads = data.clients.filter { $0.status == .lead }.count
@@ -332,7 +332,13 @@ final class DataStore: ObservableObject {
             guard let d = $0.nextActionDue else { return false }
             return d >= Date() && d <= weekEnd
         }.count
-        return (active, stale, leads, shipped, dueThisWeek)
+        // Sum this month's paid invoices
+        let monthStart = Calendar.current.date(from: Calendar.current.dateComponents([.year, .month], from: Date())) ?? Date()
+        let monthRevenue = InvoiceManager.shared.loadAll()
+            .filter { $0.status == "paid" && $0.createdAt >= monthStart }
+            .map { $0.total }
+            .reduce(0, +)
+        return (active, stale, leads, shipped, dueThisWeek, monthRevenue)
     }
 
     // MARK: - Seed
