@@ -106,10 +106,15 @@ struct SettingsView: View {
                                 Circle()
                                     .fill(webhookRunning ? MC.statusActive : MC.stale)
                                     .frame(width: 6, height: 6)
-                                Text(webhookRunning ? "live" : "off")
+                                Text(webhookRunning ? "live · :8787" : "off")
                                     .font(.system(size: 10.5, weight: .medium))
                                     .foregroundStyle(MC.textTertiary)
                             }
+                        }
+                        if !webhookRunning {
+                            Text("Webhook server didn't start — port 8787 may be in use. Check Console.app for details.")
+                                .font(.system(size: 10.5))
+                                .foregroundStyle(MC.stale)
                         }
                     }
 
@@ -172,6 +177,9 @@ struct SettingsView: View {
             await checkAuth()
             staleDays = Double(store.data.settings.staleDays)
             refreshBackups()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .mcWebhookStatusChanged)) { _ in
+            webhookRunning = WebhookServer.shared.running
         }
     }
 

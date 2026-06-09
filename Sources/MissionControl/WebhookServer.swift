@@ -23,12 +23,23 @@ final class WebhookServer {
         do {
             let l = try NWListener(using: params, on: port)
             l.newConnectionHandler = { [weak self] conn in self?.handle(conn) }
+            l.stateUpdateHandler = { state in
+                if case .ready = state {
+                    self.running = true
+                    NotificationCenter.default.post(name: .mcWebhookStatusChanged, object: nil)
+                } else if case .failed = state {
+                    self.running = false
+                    NotificationCenter.default.post(name: .mcWebhookStatusChanged, object: nil)
+                }
+            }
             l.start(queue: .global(qos: .background))
             self.listener = l
             self.running = true
             NSLog("WebhookServer: listening on http://127.0.0.1:\(port)")
         } catch {
             NSLog("WebhookServer: failed to start — \(error)")
+            self.running = false
+            NotificationCenter.default.post(name: .mcWebhookStatusChanged, object: nil)
         }
     }
 
