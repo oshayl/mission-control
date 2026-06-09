@@ -115,6 +115,23 @@ struct SettingsView: View {
                             Text("Webhook server didn't start — port 8787 may be in use. Check Console.app for details.")
                                 .font(.system(size: 10.5))
                                 .foregroundStyle(MC.stale)
+                        } else {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Try it:")
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .tracking(0.5)
+                                    .foregroundStyle(MC.textTertiary)
+                                Text(Self.exampleCurl)
+                                    .font(.system(size: 10, design: .monospaced))
+                                    .foregroundStyle(MC.textSecondary)
+                                    .textSelection(.enabled)
+                                    .padding(8)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: MC.chipCornerRadius)
+                                            .fill(MC.textPrimary.opacity(0.04))
+                                    )
+                            }
                         }
                     }
 
@@ -264,6 +281,11 @@ struct SettingsView: View {
         let dir = (expanded as NSString).deletingLastPathComponent
         NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: dir)])
     }
+    private static let exampleCurl = """
+    curl -X POST http://127.0.0.1:8787/lead \\
+      -H "Content-Type: application/json" \\
+      -d '{"name":"Test Lead","company":"Acme","phone":"+15555550100","source":"example"}'
+    """
 }
 
 // MARK: - Helper rows
