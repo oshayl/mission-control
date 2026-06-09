@@ -178,6 +178,15 @@ struct ClientDetail: View {
                 client.lastInvoiceAmount = amt
                 client.lastInvoiceStatus = "draft"
                 store.upsert(client)
+                // Open the default mail app with a pre-filled message
+                if let e = client.email, !e.isEmpty {
+                    let inv = InvoiceManager.shared.loadAll().first { $0.clientID == client.id }
+                    let body = inv.map { InvoiceManager.shared.renderMarkdown($0) } ?? "Invoice attached."
+                    let subject = "Invoice \(inv?.number ?? "")"
+                    if let url = URL(string: "mailto:\(e)?subject=\(subject.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")&body=\(body.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")") {
+                        NSWorkspace.shared.open(url)
+                    }
+                }
             } label: {
                 Label("Invoice", systemImage: "dollarsign.circle")
             }
