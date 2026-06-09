@@ -240,8 +240,14 @@ private extension Binding where Value == String {
 // MARK: - External app launchers
 
 func openIMessage(to handle: String) {
-    let s = handle.hasPrefix("+") ? handle : handle
-    if let url = URL(string: "sms:\(s)") { NSWorkspace.shared.open(url) }
+    // On macOS, `imessage://` opens Messages app pre-targeted. Falls back gracefully.
+    // `sms:` is iOS-only; we use `messages:` for phone numbers and `mailto:` for emails.
+    let s = handle.trimmingCharacters(in: .whitespaces)
+    if s.contains("@") {
+        if let url = URL(string: "imessage://\(s)") { NSWorkspace.shared.open(url) }
+    } else {
+        if let url = URL(string: "messages://\(s)") { NSWorkspace.shared.open(url) }
+    }
 }
 func openTel(_ phone: String) {
     let p = phone.replacingOccurrences(of: " ", with: "").replacingOccurrences(of: "-", with: "")
