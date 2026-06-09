@@ -32,6 +32,8 @@ struct RootView: View {
         .frame(width: MC.popoverWidth, height: MC.popoverHeight)
         .background(MC.popoverBackground)
         .animation(.easeOut(duration: 0.18), value: store.selectedClientID)
+        .animation(.easeInOut(duration: 0.2), value: store.filteredClients.map { $0.id })
+        .animation(.easeInOut(duration: 0.2), value: store.search)
         .sheet(isPresented: $store.showAddSheet) {
             AddClientSheet(isPresented: $store.showAddSheet)
                 .environmentObject(store)

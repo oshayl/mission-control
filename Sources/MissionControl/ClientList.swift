@@ -46,6 +46,10 @@ struct ClientList: View {
                 LazyVStack(spacing: 0) {
                     ForEach(store.filteredClients) { c in
                         clientRowView(c)
+                            .transition(.asymmetric(
+                                insertion: .opacity.combined(with: .move(edge: .top)),
+                                removal: .opacity
+                            ))
                         Divider().background(MC.hairline).padding(.leading, 44)
                     }
                 }
