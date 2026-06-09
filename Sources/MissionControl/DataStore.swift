@@ -14,6 +14,8 @@ final class DataStore: ObservableObject {
     @Published var lastError: String? = nil
     @Published var lastSync: Date? = nil
     @Published var showAddSheet: Bool = false
+    @Published var showSettings: Bool = false
+    @Published var showCommandPalette: Bool = false
     @Published var selectedClientID: UUID? = nil
 
     private let appSupportURL: URL
@@ -107,6 +109,8 @@ final class DataStore: ObservableObject {
         if changed {
             objectWillChange.send()
         }
+        // Refresh notifications whenever data changes
+        NotificationsManager.shared.refreshStaleNotifications(clients: data.clients)
     }
 
     /// Public lookup used by the detail view to show last iMessage preview.

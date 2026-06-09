@@ -50,9 +50,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Right-click menu on status item (for quit, refresh, etc.)
         let menu = NSMenu()
         menu.addItem(withTitle: "Show Mission Control", action: #selector(showPopover), keyEquivalent: "")
+        menu.addItem(withTitle: "Command Palette…", action: #selector(openCommandPalette), keyEquivalent: "k")
         menu.addItem(NSMenuItem.separator())
         menu.addItem(withTitle: "Save Now", action: #selector(saveNow), keyEquivalent: "s")
         menu.addItem(withTitle: "Reload from iCloud", action: #selector(reloadFromCloud), keyEquivalent: "r")
+        menu.addItem(withTitle: "Preferences…", action: #selector(openSettings), keyEquivalent: ",")
         menu.addItem(NSMenuItem.separator())
         menu.addItem(withTitle: "Quit Mission Control", action: #selector(quitApp), keyEquivalent: "q")
         menu.items.forEach { $0.target = self }
@@ -69,6 +71,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
         }
+
+        // Request notification permission
+        Task { await NotificationsManager.shared.requestAuthorization() }
 
         // Refresh badge
         updateBadge()
@@ -92,6 +97,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func reloadFromCloud() {
         store.load()
         flashBadge()
+    }
+
+    @objc func openCommandPalette() {
+        showPopover()
+        // CommandPalette is presented from RootView; trigger it via a flag
+        store.showCommandPalette = true
+    }
+
+    @objc func openSettings() {
+        showPopover()
+        store.showSettings = true
     }
 
     @objc func quitApp() {

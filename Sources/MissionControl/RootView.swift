@@ -30,6 +30,10 @@ struct RootView: View {
             AddClientSheet(isPresented: $store.showAddSheet)
                 .environmentObject(store)
         }
+        .sheet(isPresented: $store.showSettings) {
+            SettingsView(isOpen: $store.showSettings)
+                .environmentObject(store)
+        }
         .sheet(isPresented: $showCommandPalette) {
             CommandPalette(isOpen: $showCommandPalette)
                 .environmentObject(store)
@@ -40,6 +44,9 @@ struct RootView: View {
                 return .handled
             }
             return .ignored
+        }
+        .onChange(of: store.showCommandPalette) { _, new in
+            if new { showCommandPalette = true; store.showCommandPalette = false }
         }
     }
 
