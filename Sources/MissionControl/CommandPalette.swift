@@ -99,7 +99,7 @@ struct CommandPalette: View {
             }
         }
         .frame(width: 520, height: 380)
-        .background(BackgroundLayer())
+        .background(MC.popoverBackground)
         .onAppear { selectedIndex = 0 }
         .onChange(of: query) { _, _ in selectedIndex = 0 }
         .onKeyPress(.downArrow) { selectedIndex = min(filtered.count - 1, selectedIndex + 1); return .handled }

@@ -1,136 +1,199 @@
 // ClientList.swift
+// Apple-clean client list. Hairline separators, no fills, no shadows.
+
 import SwiftUI
 
 struct ClientList: View {
     @EnvironmentObject var store: DataStore
     let onSelect: (Client) -> Void
+    @State private var hoverID: UUID? = nil
 
     var body: some View {
-        ScrollView {
-            LazyVStack(spacing: 6) {
-                if store.filteredClients.isEmpty {
-                    EmptyState()
-                } else {
+        if store.filteredClients.isEmpty {
+            EmptyState()
+        } else {
+            ScrollView {
+                LazyVStack(spacing: 0) {
                     ForEach(store.filteredClients) { c in
-                        ClientRow(client: c)
-                            .onTapGesture { onSelect(c) }
-                            .contextMenu {
-                                Button("Open") { onSelect(c) }
-                                Button("Mark Contacted Now") {
-                                    if let i = store.data.clients.firstIndex(where: { $0.id == c.id }) {
-                                        store.data.clients[i].lastContact = Date()
-                                    }
+                        ClientRow(
+                            client: c,
+                            isHovered: hoverID == c.id,
+                            isSelected: store.selectedClientID == c.id
+                        )
+                        .contentShape(Rectangle())
+                        .onTapGesture { onSelect(c) }
+                        .onHover { hoverID = $0 ? c.id : (hoverID == c.id ? nil : hoverID) }
+                        .contextMenu {
+                            Button("Open") { onSelect(c) }
+                            Button("Mark Contacted Now") {
+                                if let i = store.data.clients.firstIndex(where: { $0.id == c.id }) {
+                                    store.data.clients[i].lastContact = Date()
                                 }
-                                Button("Snooze 7 Days") {
-                                    if let i = store.data.clients.firstIndex(where: { $0.id == c.id }) {
-                                        store.data.clients[i].lastContact = Calendar.current.date(byAdding: .day, value: -7, to: Date())
-                                    }
-                                }
-                                Divider()
-                                if let phone = c.phone, !phone.isEmpty {
-                                    Button("Call \(phone)") { openTel(phone) }
-                                }
-                                if let im = c.imessageHandle, !im.isEmpty {
-                                    Button("iMessage") { openIMessage(to: im) }
-                                }
-                                if let em = c.email, !em.isEmpty {
-                                    Button("Email") { openMail(to: em) }
-                                }
-                                Divider()
-                                Button(role: .destructive) {
-                                    store.delete(id: c.id)
-                                } label: { Text("Delete") }
                             }
+                            Button("Snooze 7 Days") {
+                                if let i = store.data.clients.firstIndex(where: { $0.id == c.id }) {
+                                    store.data.clients[i].lastContact = Calendar.current.date(byAdding: .day, value: -7, to: Date())
+                                }
+                            }
+                            Divider()
+                            if let phone = c.phone, !phone.isEmpty {
+                                Button("Call \(phone)") { openTel(phone) }
+                            }
+                            if let im = c.imessageHandle, !im.isEmpty {
+                                Button("iMessage") { openIMessage(to: im) }
+                            }
+                            if let em = c.email, !em.isEmpty {
+                                Button("Email") { openMail(to: em) }
+                            }
+                            Divider()
+                            Button(role: .destructive) {
+                                store.delete(id: c.id)
+                            } label: { Text("Delete") }
+                        }
+                        Divider().background(MC.hairline).padding(.leading, 44)
                     }
                 }
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
         }
     }
 }
 
 struct ClientRow: View {
     let client: Client
+    let isHovered: Bool
+    let isSelected: Bool
 
     var body: some View {
-        HStack(spacing: 10) {
-            Avatar(client: client)
+        HStack(alignment: .center, spacing: 10) {
+            // Initials — single-color block, no gradient
+            Text(client.initials.uppercased())
+                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                .foregroundStyle(MC.textSecondary)
+                .frame(width: 24, height: 24)
+                .background(
+                    RoundedRectangle(cornerRadius: 4)
+                        .stroke(MC.hairline, lineWidth: 1)
+                )
+
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
-                    Text(client.displayName).font(.subheadline.weight(.semibold)).lineLimit(1)
-                    Circle().fill(client.status.color).frame(width: 6, height: 6)
+                    Text(client.displayName)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(MC.textPrimary)
+                        .lineLimit(1)
+                    if client.nextActionDue != nil {
+                        Image(systemName: "bell.fill")
+                            .font(.system(size: 9))
+                            .foregroundStyle(MC.textTertiary)
+                    }
                 }
-                if let n = client.nextAction, !n.isEmpty {
-                    Text(n).font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                } else if let last = client.lastContact {
-                    Text("Last contact \(relative(last))").font(.caption).foregroundStyle(.secondary)
-                } else {
-                    Text("Never contacted").font(.caption).foregroundStyle(.secondary)
-                }
+                Text(secondary)
+                    .font(.system(size: 11))
+                    .foregroundStyle(MC.textTertiary)
+                    .lineLimit(1)
             }
-            Spacer()
+
+            Spacer(minLength: 8)
+
             VStack(alignment: .trailing, spacing: 2) {
                 if let d = client.daysSinceContact {
-                    Text("\(d)d")
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(client.isStale ? .orange : .secondary)
+                    Text(daysLabel(d))
+                        .font(.system(size: 11, weight: .medium, design: .rounded).monospacedDigit())
+                        .foregroundStyle(client.isStale ? MC.stale : MC.textTertiary)
                 }
-                if let amt = client.lastInvoiceAmount {
-                    Text(currency(amt)).font(.caption2).foregroundStyle(.tertiary)
-                }
+                statusLabel
             }
         }
-        .padding(.horizontal, 10).padding(.vertical, 8)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Color.white.opacity(0.04))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(Color.white.opacity(0.05), lineWidth: 1)
-        )
+        .padding(.horizontal, MC.pad)
+        .frame(height: MC.rowHeight)
+        .background(rowBackground)
     }
-}
 
-struct Avatar: View {
-    let client: Client
-    var body: some View {
-        ZStack {
-            Circle().fill(
-                LinearGradient(
-                    colors: gradient,
-                    startPoint: .topLeading, endPoint: .bottomTrailing
-                )
-            )
-            Text(client.initials.uppercased())
-                .font(.caption.weight(.bold))
-                .foregroundStyle(.white)
-        }
-        .frame(width: 30, height: 30)
+    private var secondary: String {
+        if let n = client.nextAction, !n.isEmpty { return n }
+        if let last = client.lastContact { return "Last contact \(relative(last))" }
+        return "Never contacted"
     }
-    var gradient: [Color] {
-        // Stable color from name hash
-        let h = abs(client.name.hashValue)
-        let palettes: [[Color]] = [
-            [.purple, .indigo], [.teal, .blue], [.pink, .red],
-            [.orange, .yellow], [.green, .mint], [.blue, .cyan],
-        ]
-        return palettes[h % palettes.count]
+
+    private var statusLabel: some View {
+        Text(client.status.label.uppercased())
+            .font(.system(size: 9, weight: .semibold))
+            .tracking(0.5)
+            .foregroundStyle(client.status.systemColor)
+    }
+
+    private var rowBackground: some View {
+        Group {
+            if isSelected { MC.rowSelected }
+            else if isHovered { MC.rowHover }
+            else { Color.clear }
+        }
+    }
+
+    private func daysLabel(_ d: Int) -> String {
+        d == 0 ? "today" : "\(d)d"
     }
 }
 
 struct EmptyState: View {
+    @EnvironmentObject var store: DataStore
     var body: some View {
-        VStack(spacing: 8) {
-            Image(systemName: "person.crop.circle.badge.questionmark")
-                .font(.system(size: 36)).foregroundStyle(.secondary)
-            Text("No clients match").font(.subheadline)
-            Text("Try a different filter, or add one with +.")
-                .font(.caption).foregroundStyle(.secondary)
+        VStack(spacing: 12) {
+            Image(systemName: "person.crop.circle")
+                .font(.system(size: 32, weight: .light))
+                .foregroundStyle(MC.textTertiary)
+            Text("No clients match")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(MC.textPrimary)
+            Text("Add one with ⌘N or the + button.")
+                .font(.system(size: 11))
+                .foregroundStyle(MC.textTertiary)
+            Button("Add Client") { store.showAddSheet = true }
+                .buttonStyle(MCButtonStyle(variant: .primary))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(40)
+    }
+}
+
+struct MCButtonStyle: ButtonStyle {
+    enum Variant { case primary, secondary, ghost }
+    let variant: Variant
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 12, weight: .medium))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 5)
+            .background(background(isPressed: configuration.isPressed))
+            .foregroundStyle(foreground)
+            .overlay(
+                RoundedRectangle(cornerRadius: MC.chipCornerRadius)
+                    .stroke(border, lineWidth: borderWidth)
+            )
+    }
+
+    private func background(isPressed: Bool) -> Color {
+        switch variant {
+        case .primary: return isPressed ? MC.accent.opacity(0.8) : MC.accent
+        case .secondary: return isPressed ? MC.textPrimary.opacity(0.08) : MC.textPrimary.opacity(0.05)
+        case .ghost: return Color.clear
+        }
+    }
+    private var foreground: Color {
+        switch variant {
+        case .primary: return .white
+        case .secondary, .ghost: return MC.textPrimary
+        }
+    }
+    private var border: Color {
+        switch variant {
+        case .primary: return .clear
+        case .secondary: return MC.hairline
+        case .ghost: return .clear
+        }
+    }
+    private var borderWidth: CGFloat {
+        variant == .secondary ? 1 : 0
     }
 }
 

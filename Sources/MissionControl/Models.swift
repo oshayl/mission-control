@@ -43,7 +43,9 @@ struct Client: Identifiable, Codable, Hashable {
     var githubLogin: String?
     var notes: String = ""
     var tags: [String] = []
+    var activity: [ActivityEntry] = []   // lifted to client level (was nested in projects)
     var projects: [Project] = []
+    var attachments: [Attachment] = []
     var createdAt: Date = Date()
     var updatedAt: Date = Date()
 
@@ -82,14 +84,26 @@ struct ActivityEntry: Identifiable, Codable, Hashable {
     var meta: String?
 }
 
+struct Attachment: Identifiable, Codable, Hashable {
+    var id: UUID = UUID()
+    var name: String
+    var url: String           // file:// or https://
+    var sizeBytes: Int?
+    var addedAt: Date = Date()
+}
+
 struct MissionData: Codable {
     var version: Int = 1
     var clients: [Client] = []
+    var archivedClients: [Client] = []
     var settings: Settings = Settings()
 
     struct Settings: Codable {
         var staleDays: Int = 14
         var githubOrgs: [String] = ["oshayl"]
+        var autoLaunch: Bool = true
+        var notifyStale: Bool = true
+        var themeRaw: String = "system"   // system / light / dark
         var syncedAt: Date = Date()
     }
 }

@@ -10,13 +10,18 @@ final class DataStore: ObservableObject {
     @Published var data: MissionData = MissionData()
     @Published var search: String = ""
     @Published var statusFilter: ClientStatus? = nil
+    @Published var tagFilter: String? = nil
+    @Published var timeframe: Timeframe = .all
     @Published var showStaleOnly: Bool = false
     @Published var lastError: String? = nil
     @Published var lastSync: Date? = nil
     @Published var showAddSheet: Bool = false
     @Published var showSettings: Bool = false
     @Published var showCommandPalette: Bool = false
+    @Published var showArchive: Bool = false
     @Published var selectedClientID: UUID? = nil
+    @Published var bulkSelectedIDs: Set<UUID> = []
+    @Published var pulseAt: Date? = nil   // for icon animation when new activity arrives
 
     private let appSupportURL: URL
     private let iCloudURL: URL?
@@ -158,12 +163,138 @@ final class DataStore: ObservableObject {
         data.clients.removeAll { $0.id == id }
     }
 
+    // MARK: - Bulk ops
+
+    func bulkMarkContacted(ids: Set<UUID>) {
+        let now = Date()
+        for i in data.clients.indices {
+            if ids.contains(data.clients[i].id) {
+                data.clients[i].lastContact = now
+            }
+        }
+    }
+
+    func bulkArchive(ids: Set<UUID>) {
+        var toMove: [Client] = []
+        data.clients.removeAll { c in
+            if ids.contains(c.id) {
+                toMove.append(c); return true
+            }
+            return false
+        }
+        data.archivedClients.append(contentsOf: toMove)
+    }
+
+    func bulkTag(ids: Set<UUID>, tag: String) {
+        let t = tag.trimmingCharacters(in: .whitespaces)
+        guard !t.isEmpty else { return }
+        for i in data.clients.indices where ids.contains(data.clients[i].id) {
+            if !data.clients[i].tags.contains(t) {
+                data.clients[i].tags.append(t)
+            }
+        }
+    }
+
+    func restoreFromArchive(id: UUID) {
+        guard let i = data.archivedClients.firstIndex(where: { $0.id == id }) else { return }
+        let c = data.archivedClients.remove(at: i)
+        data.clients.append(c)
+    }
+
+    // MARK: - CSV import/export
+
+    func exportCSV() -> String {
+        var rows: [String] = []
+        let header = "name,company,status,phone,email,imessage,github,next_action,next_action_due,last_contact,last_invoice_amount,last_invoice_status,tags,notes"
+        rows.append(header)
+        let f = ISO8601DateFormatter()
+        for c in data.clients {
+            let cols: [String] = [
+                c.name, c.company ?? "", c.status.rawValue,
+                c.phone ?? "", c.email ?? "", c.imessageHandle ?? "",
+                c.githubLogin ?? "", c.nextAction ?? "",
+                c.nextActionDue.map(f.string(from:)) ?? "",
+                c.lastContact.map(f.string(from:)) ?? "",
+                c.lastInvoiceAmount.map { String($0) } ?? "",
+                c.lastInvoiceStatus ?? "",
+                c.tags.joined(separator: ";"),
+                c.notes.replacingOccurrences(of: "\n", with: " ")
+            ]
+            rows.append(cols.map(csvEscape).joined(separator: ","))
+        }
+        return rows.joined(separator: "\n")
+    }
+
+    func importCSV(_ text: String) -> Int {
+        let lines = text.split(separator: "\n", omittingEmptySubsequences: true)
+        guard lines.count > 1 else { return 0 }
+        let header = parseCSVRow(String(lines[0]))
+        guard header.count >= 1 else { return 0 }
+        var added = 0
+        let f = ISO8601DateFormatter()
+        for line in lines.dropFirst() {
+            let cols = parseCSVRow(String(line))
+            guard cols.count >= 1, !cols[0].isEmpty else { continue }
+            func col(_ name: String) -> String? {
+                guard let i = header.firstIndex(of: name), i < cols.count else { return nil }
+                return cols[i].isEmpty ? nil : cols[i]
+            }
+            var c = Client(name: cols[0])
+            c.company = col("company")
+            c.status = ClientStatus(rawValue: col("status") ?? "active") ?? .active
+            c.phone = col("phone")
+            c.email = col("email")
+            c.imessageHandle = col("imessage")
+            c.githubLogin = col("github")
+            c.nextAction = col("next_action")
+            c.nextActionDue = col("next_action_due").flatMap { f.date(from: $0) }
+            c.lastContact = col("last_contact").flatMap { f.date(from: $0) }
+            if let amt = col("last_invoice_amount"), let d = Double(amt) { c.lastInvoiceAmount = d }
+            c.lastInvoiceStatus = col("last_invoice_status")
+            c.tags = (col("tags") ?? "").split(separator: ";").map(String.init).filter { !$0.isEmpty }
+            c.notes = col("notes") ?? ""
+            upsert(c)
+            added += 1
+        }
+        return added
+    }
+
+    private func csvEscape(_ s: String) -> String {
+        if s.contains(",") || s.contains("\"") || s.contains("\n") {
+            return "\"\(s.replacingOccurrences(of: "\"", with: "\"\""))\""
+        }
+        return s
+    }
+
+    private func parseCSVRow(_ line: String) -> [String] {
+        var cols: [String] = []
+        var current = ""
+        var inQuotes = false
+        for c in line {
+            if c == "\"" { inQuotes.toggle() }
+            else if c == "," && !inQuotes { cols.append(current); current = "" }
+            else { current.append(c) }
+        }
+        cols.append(current)
+        return cols
+    }
+
+    // MARK: - Pulse trigger
+
+    func triggerPulse() {
+        pulseAt = Date()
+    }
+
     // MARK: - Derived
 
     var filteredClients: [Client] {
         var list = data.clients
         if let s = statusFilter { list = list.filter { $0.status == s } }
         if showStaleOnly { list = list.filter { $0.isStale } }
+        if let tag = tagFilter, !tag.isEmpty {
+            list = list.filter { $0.tags.contains(where: { $0.lowercased() == tag.lowercased() }) }
+        }
+        list = timeframe.filter(list)
         let q = search.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         if !q.isEmpty {
             list = list.filter {
@@ -171,6 +302,7 @@ final class DataStore: ObservableObject {
                 || ($0.company ?? "").lowercased().contains(q)
                 || $0.notes.lowercased().contains(q)
                 || $0.tags.contains(where: { $0.lowercased().contains(q) })
+                || ($0.nextAction ?? "").lowercased().contains(q)
             }
         }
         return list.sorted {
@@ -178,12 +310,22 @@ final class DataStore: ObservableObject {
         }
     }
 
-    var stats: (active: Int, stale: Int, leads: Int, shipped: Int) {
+    var allTags: [String] {
+        let set = Set(data.clients.flatMap { $0.tags })
+        return set.sorted()
+    }
+
+    var stats: (active: Int, stale: Int, leads: Int, shipped: Int, dueThisWeek: Int) {
         let active = data.clients.filter { $0.status == .active }.count
         let stale = data.clients.filter { $0.isStale && $0.status == .active }.count
         let leads = data.clients.filter { $0.status == .lead }.count
         let shipped = data.clients.filter { $0.status == .shipped }.count
-        return (active, stale, leads, shipped)
+        let weekEnd = Calendar.current.date(byAdding: .day, value: 7, to: Date()) ?? Date()
+        let dueThisWeek = data.clients.filter {
+            guard let d = $0.nextActionDue else { return false }
+            return d >= Date() && d <= weekEnd
+        }.count
+        return (active, stale, leads, shipped, dueThisWeek)
     }
 
     // MARK: - Seed
@@ -254,4 +396,53 @@ extension JSONDecoder {
         d.dateDecodingStrategy = .iso8601
         return d
     }()
+}
+
+enum Timeframe: String, CaseIterable, Identifiable {
+    case all
+    case today
+    case thisWeek
+    case dueSoon
+    case stale
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .all: return "All"
+        case .today: return "Today"
+        case .thisWeek: return "This Week"
+        case .dueSoon: return "Due Soon"
+        case .stale: return "Stale"
+        }
+    }
+
+    func filter(_ clients: [Client]) -> [Client] {
+        let now = Date()
+        let cal = Calendar.current
+        switch self {
+        case .all: return clients
+        case .today:
+            return clients.filter { c in
+                if let lc = c.lastContact, cal.isDateInToday(lc) { return true }
+                if let due = c.nextActionDue, cal.isDateInToday(due) { return true }
+                return false
+            }
+        case .thisWeek:
+            let weekEnd = cal.date(byAdding: .day, value: 7, to: now) ?? now
+            return clients.filter { c in
+                if let lc = c.lastContact, lc >= now.addingTimeInterval(-7*24*3600) { return true }
+                if let due = c.nextActionDue, due >= now && due <= weekEnd { return true }
+                return false
+            }
+        case .dueSoon:
+            let weekEnd = cal.date(byAdding: .day, value: 7, to: now) ?? now
+            return clients.filter { c in
+                guard let due = c.nextActionDue else { return false }
+                return due >= now && due <= weekEnd
+            }
+        case .stale:
+            return clients.filter { $0.isStale }
+        }
+    }
 }

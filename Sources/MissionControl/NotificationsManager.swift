@@ -27,6 +27,32 @@ final class NotificationsManager: NSObject, UNUserNotificationCenterDelegate {
         }
     }
 
+    /// Schedule a single follow-up notification for a client on a specific date.
+    /// Time is normalized to 9:00 AM local on that date so we don't ping in the middle of the night.
+    func scheduleFollowUp(client: Client, at date: Date, message: String) {
+        guard authorized else { return }
+        let content = UNMutableNotificationContent()
+        content.title = "Follow up · \(client.displayName)"
+        content.body = message
+        content.sound = .default
+        content.userInfo = ["clientID": client.id.uuidString]
+        // Normalize to 9:00 AM local on the chosen date.
+        var comps = Calendar.current.dateComponents([.year, .month, .day], from: date)
+        comps.hour = 9
+        comps.minute = 0
+        let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
+        let req = UNNotificationRequest(
+            identifier: "followup-\(client.id.uuidString)",
+            content: content,
+            trigger: trigger
+        )
+        center.add(req) { _ in }
+    }
+
+    func cancelFollowUp(clientID: UUID) {
+        center.removePendingNotificationRequests(withIdentifiers: ["followup-\(clientID.uuidString)"])
+    }
+
     /// Re-evaluates the stale list and posts/updates a summary notification.
     func refreshStaleNotifications(clients: [Client]) {
         guard authorized else { return }

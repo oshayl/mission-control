@@ -1,4 +1,6 @@
 // ClientDetail.swift
+// Apple-clean detail. Sections separated by hairlines, no panel chrome.
+
 import SwiftUI
 import AppKit
 
@@ -11,268 +13,353 @@ struct ClientDetail: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
-            HStack(spacing: 10) {
-                Button(action: onBack) {
-                    Image(systemName: "chevron.left")
-                }
-                .buttonStyle(.borderless)
-                Avatar(client: client).scaleEffect(1.2)
-                VStack(alignment: .leading) {
-                    TextField("Name", text: $client.name).font(.headline).textFieldStyle(.plain)
-                    TextField("Company", text: Binding($client.company, replacingNilWith: "")).font(.subheadline).textFieldStyle(.plain).foregroundStyle(.secondary)
-                }
-                Spacer()
-            }
-            .padding(.horizontal, 14).padding(.vertical, 10)
-
-            Divider().opacity(0.3)
-
+            detailHeader
+            Divider().background(MC.hairline)
             ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
-                    // Status + next action
-                    GroupBox("Status") {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Picker("", selection: $client.status) {
-                                ForEach(ClientStatus.allCases, id: \.self) { s in
-                                    Text(s.label).tag(s)
-                                }
-                            }
-                            .pickerStyle(.segmented)
-
-                            Text("Next action").font(.caption).foregroundStyle(.secondary)
-                            TextField("What's the next move?", text: Binding($client.nextAction, replacingNilWith: ""), axis: .vertical)
-                                .textFieldStyle(.roundedBorder)
-                                .lineLimit(2...4)
-
-                            HStack {
-                                DatePicker("Due", selection: Binding(get: { client.nextActionDue ?? Date() }, set: { client.nextActionDue = $0 }), displayedComponents: [.date])
-                                    .controlSize(.small)
-                                Spacer()
-                                Button("Clear") { client.nextActionDue = nil }
-                                    .controlSize(.small)
-                            }
-                        }
-                        .padding(6)
-                    }
-
-                    // Contact
-                    GroupBox("Contact") {
-                        VStack(alignment: .leading, spacing: 6) {
-                            LabeledField(label: "Phone", value: Binding($client.phone, replacingNilWith: ""), placeholder: "+1…")
-                            LabeledField(label: "Email", value: Binding($client.email, replacingNilWith: ""), placeholder: "name@domain")
-                            LabeledField(label: "iMessage", value: Binding($client.imessageHandle, replacingNilWith: ""), placeholder: "+1… or email")
-                            LabeledField(label: "GitHub", value: Binding($client.githubLogin, replacingNilWith: ""), placeholder: "username")
-                        }
-                        .padding(6)
-                    }
-
-                    // iMessage activity (auto-detected)
-                    if let lastMsg = store.lastIMessage(for: client) {
-                        GroupBox("Last iMessage") {
-                            VStack(alignment: .leading, spacing: 4) {
-                                HStack {
-                                    Text(lastMsg.lastFromMe ? "You:" : "Them:")
-                                        .font(.caption.weight(.semibold))
-                                        .foregroundStyle(lastMsg.lastFromMe ? .blue : .green)
-                                    Spacer()
-                                    Text(lastMsg.lastMessageAt, style: .relative)
-                                        .font(.caption2).foregroundStyle(.tertiary)
-                                }
-                                Text(lastMsg.lastMessageText)
-                                    .font(.caption)
-                                    .lineLimit(3)
-                                    .foregroundStyle(.secondary)
-                            }
-                            .padding(6)
-                        }
-                    }
-
-                    // GitHub activity (auto-fetched)
+                VStack(alignment: .leading, spacing: 20) {
+                    statusSection
+                    contactSection
                     if let g = client.githubLogin, !g.isEmpty {
-                        GitHubActivityView(login: g) {
-                            await store.githubActivity(for: client)
-                        }
+                        githubSection(login: g)
                     }
-
-                    // Calendar — next meeting
-                    CalendarEventView(client: client)
-
-                    // Quick actions
-                    HStack(spacing: 6) {
-                        ActionButton(title: "iMessage", system: "message.fill") {
-                            if let h = client.imessageHandle, !h.isEmpty { openIMessage(to: h) }
-                        }
-                        ActionButton(title: "Call", system: "phone.fill") {
-                            if let p = client.phone, !p.isEmpty { openTel(p) }
-                        }
-                        ActionButton(title: "Email", system: "envelope.fill") {
-                            if let e = client.email, !e.isEmpty { openMail(to: e) }
-                        }
-                        ActionButton(title: "GitHub", system: "chevron.left.forwardslash.chevron.right") {
-                            if let g = client.githubLogin, !g.isEmpty {
-                                if let url = URL(string: "https://github.com/\(g)") { NSWorkspace.shared.open(url) }
-                            }
-                        }
+                    if let lastMsg = store.lastIMessage(for: client) {
+                        iMessageSection(lastMsg: lastMsg)
                     }
-                    .padding(.horizontal, 4)
-
-                    // Activity log
-                    GroupBox("Activity") {
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack {
-                                Picker("", selection: $newActivityKind) {
-                                    Text("Note").tag("note")
-                                    Text("Call").tag("call")
-                                    Text("Message").tag("message")
-                                    Text("Invoice").tag("invoice")
-                                    Text("Deploy").tag("deploy")
-                                    Text("Commit").tag("commit")
-                                }
-                                .pickerStyle(.menu)
-                                .frame(width: 130)
-                                TextField("Add a quick activity…", text: $newActivityText)
-                                Button {
-                                    guard !newActivityText.isEmpty else { return }
-                                    let entry = ActivityEntry(timestamp: Date(), kind: newActivityKind, summary: newActivityText)
-                                    if client.projects.isEmpty {
-                                        // store-level activity fallback: keep on client via notes append
-                                        client.notes += (client.notes.isEmpty ? "" : "\n") + "[\(newActivityKind)] \(newActivityText)"
-                                    } else {
-                                        client.projects[0].activity.append(entry)
-                                    }
-                                    newActivityText = ""
-                                    store.upsert(client)
-                                } label: { Image(systemName: "plus.circle.fill") }
-                                .buttonStyle(.borderless)
-                            }
-                            Divider().opacity(0.3)
-                            let entries = client.projects.first?.activity ?? []
-                            if entries.isEmpty {
-                                Text("No activity yet.").font(.caption).foregroundStyle(.secondary)
-                            } else {
-                                ForEach(entries.sorted(by: { $0.timestamp > $1.timestamp })) { e in
-                                    HStack(alignment: .top, spacing: 6) {
-                                        Image(systemName: iconFor(e.kind))
-                                            .foregroundStyle(colorFor(e.kind))
-                                            .frame(width: 14)
-                                        VStack(alignment: .leading) {
-                                            Text(e.summary).font(.caption)
-                                            Text(e.timestamp, style: .relative).font(.caption2).foregroundStyle(.tertiary)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        .padding(6)
-                    }
-
-                    // Notes
-                    GroupBox("Notes") {
-                        TextEditor(text: $client.notes)
-                            .font(.caption)
-                            .frame(minHeight: 80)
-                            .scrollContentBackground(.hidden)
-                            .padding(4)
-                    }
+                    calendarSection
+                    activitySection
+                    notesSection
+                    Spacer(minLength: 40)
                 }
-                .padding(12)
+                .padding(.horizontal, MC.pad)
+                .padding(.top, 16)
             }
-
-            Divider().opacity(0.3)
-            HStack {
-                Button(role: .destructive) {
-                    store.delete(id: client.id)
-                    onBack()
-                } label: { Label("Delete", systemImage: "trash") }
-                Spacer()
-                Button("Done") {
-                    store.upsert(client)
-                    onBack()
-                }
-                .keyboardShortcut(.defaultAction)
-                .buttonStyle(.borderedProminent)
-            }
-            .padding(10)
+            Divider().background(MC.hairline)
+            detailFooter
         }
         .onChange(of: client) { _, new in
             store.upsert(new)
         }
     }
 
-    private func iconFor(_ kind: String) -> String {
-        switch kind {
-        case "call": return "phone.fill"
-        case "message": return "message.fill"
-        case "invoice": return "dollarsign.circle.fill"
-        case "deploy": return "arrow.up.circle.fill"
-        case "commit": return "chevron.left.forwardslash.chevron.right"
-        default: return "note.text"
-        }
-    }
-    private func colorFor(_ kind: String) -> Color {
-        switch kind {
-        case "call": return .green
-        case "message": return .blue
-        case "invoice": return .orange
-        case "deploy": return .purple
-        case "commit": return .indigo
-        default: return .secondary
-        }
-    }
-}
+    // MARK: - Header
 
-struct LabeledField: View {
-    let label: String
-    @Binding var value: String
-    let placeholder: String
-    var body: some View {
-        HStack {
-            Text(label).font(.caption).foregroundStyle(.secondary).frame(width: 70, alignment: .trailing)
-            TextField(placeholder, text: $value)
-                .textFieldStyle(.roundedBorder)
-                .controlSize(.small)
-        }
-    }
-}
-
-struct ActionButton: View {
-    let title: String
-    let system: String
-    let action: () -> Void
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: 2) {
-                Image(systemName: system)
-                Text(title).font(.caption2)
+    private var detailHeader: some View {
+        HStack(alignment: .center, spacing: 10) {
+            Button(action: onBack) {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(MC.textSecondary)
+                    .frame(width: 20, height: 20)
             }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 6)
+            .buttonStyle(.plain)
+            .keyboardShortcut(.escape, modifiers: [])
+
+            Text(client.initials.uppercased())
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .foregroundStyle(MC.textSecondary)
+                .frame(width: 28, height: 28)
+                .background(
+                    RoundedRectangle(cornerRadius: 4)
+                        .stroke(MC.hairline, lineWidth: 1)
+                )
+
+            VStack(alignment: .leading, spacing: 1) {
+                TextField("Name", text: $client.name)
+                    .font(.system(size: 14, weight: .semibold))
+                    .textFieldStyle(.plain)
+                if let co = client.company, !co.isEmpty {
+                    Text(co)
+                        .font(.system(size: 11))
+                        .foregroundStyle(MC.textTertiary)
+                }
+            }
+            Spacer()
+        }
+        .padding(.horizontal, MC.pad)
+        .padding(.vertical, 10)
+    }
+
+    // MARK: - Status
+
+    private var statusSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            sectionHeader("Status")
+            Picker("", selection: $client.status) {
+                ForEach(ClientStatus.allCases, id: \.self) { s in
+                    Text(s.label).tag(s)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+
+            TextField("Next action", text: optionalString($client.nextAction))
+                .textFieldStyle(MCFieldStyle())
+                .font(.system(size: 13))
+
+            HStack {
+                DatePicker("Due", selection: Binding(
+                    get: { client.nextActionDue ?? Date() },
+                    set: { client.nextActionDue = $0 }
+                ), displayedComponents: [.date])
+                    .controlSize(.small)
+                    .labelsHidden()
+                if client.nextActionDue != nil {
+                    Button("Clear") { client.nextActionDue = nil }
+                        .buttonStyle(.plain)
+                        .font(.system(size: 11))
+                        .foregroundStyle(MC.textTertiary)
+                }
+                Spacer()
+                if let due = client.nextActionDue {
+                    Button {
+                        NotificationsManager.shared.scheduleFollowUp(
+                            client: client,
+                            at: due,
+                            message: client.nextAction ?? "Check in with \(client.displayName)"
+                        )
+                    } label: {
+                        Label("Remind 9 AM", systemImage: "bell")
+                            .font(.system(size: 11))
+                    }
+                    .buttonStyle(MCButtonStyle(variant: .secondary))
+                }
+            }
+        }
+    }
+
+    // MARK: - Contact
+
+    private var contactSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            sectionHeader("Contact")
+            field(label: "Phone", binding: $client.phone, placeholder: "+1…")
+            field(label: "Email", binding: $client.email, placeholder: "name@domain")
+            field(label: "iMessage", binding: $client.imessageHandle, placeholder: "+1… or email")
+            field(label: "GitHub", binding: $client.githubLogin, placeholder: "username")
+
+            HStack(spacing: 6) {
+                actionButton(title: "Message", system: "message") {
+                    if let h = client.imessageHandle, !h.isEmpty { openIMessage(to: h) }
+                }
+                actionButton(title: "Call", system: "phone") {
+                    if let p = client.phone, !p.isEmpty { openTel(p) }
+                }
+                actionButton(title: "Email", system: "envelope") {
+                    if let e = client.email, !e.isEmpty { openMail(to: e) }
+                }
+            }
+        }
+    }
+
+    // MARK: - GitHub
+
+    private func githubSection(login: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            sectionHeader("GitHub · @\(login)")
+            GitHubActivityView(login: login) {
+                await store.githubActivity(for: client)
+            }
+        }
+    }
+
+    // MARK: - iMessage
+
+    private func iMessageSection(lastMsg: IMessageContact) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            sectionHeader("Last iMessage")
+            HStack(alignment: .top, spacing: 8) {
+                Text(lastMsg.lastFromMe ? "You" : "Them")
+                    .font(.system(size: 10, weight: .semibold))
+                    .tracking(0.5)
+                    .foregroundStyle(MC.textTertiary)
+                    .frame(width: 32, alignment: .leading)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(lastMsg.lastMessageText)
+                        .font(.system(size: 12))
+                        .foregroundStyle(MC.textPrimary)
+                        .lineLimit(3)
+                    Text(lastMsg.lastMessageAt, style: .relative)
+                        .font(.system(size: 10))
+                        .foregroundStyle(MC.textTertiary)
+                }
+            }
+        }
+    }
+
+    // MARK: - Calendar
+
+    private var calendarSection: some View {
+        CalendarEventView(client: client)
+    }
+
+    // MARK: - Activity
+
+    private var activitySection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            sectionHeader("Activity")
+            HStack(spacing: 6) {
+                Picker("", selection: $newActivityKind) {
+                    Text("Note").tag("note")
+                    Text("Call").tag("call")
+                    Text("Message").tag("message")
+                    Text("Invoice").tag("invoice")
+                    Text("Deploy").tag("deploy")
+                }
+                .labelsHidden()
+                .frame(width: 90)
+                TextField("Add entry", text: $newActivityText)
+                    .textFieldStyle(MCFieldStyle())
+                Button {
+                    guard !newActivityText.isEmpty else { return }
+                    let entry = ActivityEntry(timestamp: Date(), kind: newActivityKind, summary: newActivityText)
+                    client.activity.append(entry)
+                    newActivityText = ""
+                    store.upsert(client)
+                } label: {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.system(size: 16))
+                        .foregroundStyle(MC.textSecondary)
+                }
+                .buttonStyle(.plain)
+            }
+            let entries = client.activity
+            if entries.isEmpty {
+                Text("No activity yet.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(MC.textTertiary)
+            } else {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(entries.sorted(by: { $0.timestamp > $1.timestamp }).prefix(5)) { e in
+                        activityRow(e)
+                        if e.id != entries.sorted(by: { $0.timestamp > $1.timestamp }).prefix(5).last?.id {
+                            Divider().background(MC.hairline)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func activityRow(_ e: ActivityEntry) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Text(e.kind.uppercased())
+                .font(.system(size: 9, weight: .semibold))
+                .tracking(0.5)
+                .foregroundStyle(MC.textTertiary)
+                .frame(width: 56, alignment: .leading)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(e.summary)
+                    .font(.system(size: 12))
+                    .foregroundStyle(MC.textPrimary)
+                    .lineLimit(2)
+                Text(e.timestamp, style: .relative)
+                    .font(.system(size: 10))
+                    .foregroundStyle(MC.textTertiary)
+            }
+        }
+        .padding(.vertical, 6)
+    }
+
+    // MARK: - Notes
+
+    private var notesSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            sectionHeader("Notes")
+            TextEditor(text: $client.notes)
+                .font(.system(size: 12))
+                .scrollContentBackground(.hidden)
+                .frame(minHeight: 80)
+                .padding(8)
+                .background(
+                    RoundedRectangle(cornerRadius: MC.chipCornerRadius)
+                        .stroke(MC.hairline, lineWidth: 1)
+                )
+        }
+    }
+
+    // MARK: - Footer
+
+    private var detailFooter: some View {
+        HStack {
+            Button(role: .destructive) {
+                store.delete(id: client.id)
+                onBack()
+            } label: {
+                Text("Delete")
+                    .font(.system(size: 12))
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(MC.stale)
+
+            Spacer()
+
+            Button("Done") {
+                store.upsert(client)
+                onBack()
+            }
+            .keyboardShortcut(.defaultAction)
+            .buttonStyle(MCButtonStyle(variant: .primary))
+        }
+        .padding(.horizontal, MC.pad)
+        .padding(.vertical, 10)
+    }
+
+    // MARK: - Helpers
+
+    private func sectionHeader(_ title: String) -> some View {
+        Text(title.uppercased())
+            .font(.system(size: 10, weight: .semibold))
+            .tracking(0.8)
+            .foregroundStyle(MC.textTertiary)
+    }
+
+    private func field(label: String, binding: Binding<String?>, placeholder: String) -> some View {
+        HStack(spacing: 8) {
+            Text(label)
+                .font(.system(size: 11))
+                .foregroundStyle(MC.textTertiary)
+                .frame(width: 64, alignment: .trailing)
+            TextField(placeholder, text: optionalString(binding))
+                .textFieldStyle(MCFieldStyle())
+        }
+    }
+
+    private func actionButton(title: String, system: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 4) {
+                Image(systemName: system).font(.system(size: 11))
+                Text(title).font(.system(size: 11, weight: .medium))
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
             .background(
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(Color.white.opacity(0.06))
+                RoundedRectangle(cornerRadius: MC.chipCornerRadius)
+                    .stroke(MC.hairline, lineWidth: 1)
             )
+            .foregroundStyle(MC.textPrimary)
         }
         .buttonStyle(.plain)
     }
 }
 
-private extension Binding where Value == String {
-    init(_ source: Binding<String?>, replacingNilWith nilValue: String) {
-        self.init(
-            get: { source.wrappedValue ?? nilValue },
-            set: { newValue in
-                source.wrappedValue = newValue.isEmpty ? nil : newValue
-            }
-        )
+// MARK: - Field style
+
+struct MCFieldStyle: TextFieldStyle {
+    func _body(configuration: TextField<Self._Label>) -> some View {
+        configuration
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(
+                RoundedRectangle(cornerRadius: MC.chipCornerRadius)
+                    .stroke(MC.hairline, lineWidth: 1)
+            )
+            .font(.system(size: 12))
     }
 }
 
-// MARK: - External app launchers
+// MARK: - iMessage / tel / mail launchers
 
 func openIMessage(to handle: String) {
-    // On macOS, `imessage://` opens Messages app pre-targeted. Falls back gracefully.
-    // `sms:` is iOS-only; we use `messages:` for phone numbers and `mailto:` for emails.
     let s = handle.trimmingCharacters(in: .whitespaces)
     if s.contains("@") {
         if let url = URL(string: "imessage://\(s)") { NSWorkspace.shared.open(url) }
@@ -286,4 +373,22 @@ func openTel(_ phone: String) {
 }
 func openMail(to email: String) {
     if let url = URL(string: "mailto:\(email)") { NSWorkspace.shared.open(url) }
+}
+
+private extension Binding where Value == String {
+    init(_ source: Binding<String?>, replacingNilWith nilValue: String) {
+        self.init(
+            get: { source.wrappedValue ?? nilValue },
+            set: { newValue in
+                source.wrappedValue = newValue.isEmpty ? nil : newValue
+            }
+        )
+    }
+}
+
+func optionalString(_ source: Binding<String?>) -> Binding<String> {
+    Binding(
+        get: { source.wrappedValue ?? "" },
+        set: { source.wrappedValue = $0.isEmpty ? nil : $0 }
+    )
 }

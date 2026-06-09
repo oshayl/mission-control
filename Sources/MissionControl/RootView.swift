@@ -1,5 +1,5 @@
 // RootView.swift
-// The SwiftUI popover content.
+// The SwiftUI popover content — Apple-clean.
 
 import SwiftUI
 
@@ -11,10 +11,10 @@ struct RootView: View {
         VStack(spacing: 0) {
             HeaderView()
                 .environmentObject(store)
-            Divider().opacity(0.3)
+            Divider().background(MC.hairline)
             FilterBar()
                 .environmentObject(store)
-            Divider().opacity(0.3)
+            Divider().background(MC.hairline)
             if let selID = store.selectedClientID,
                let binding = bindingForClient(id: selID) {
                 ClientDetail(client: binding, onBack: { store.selectedClientID = nil })
@@ -24,8 +24,8 @@ struct RootView: View {
                     .environmentObject(store)
             }
         }
-        .frame(width: 420, height: 560)
-        .background(BackgroundLayer())
+        .frame(width: MC.popoverWidth, height: MC.popoverHeight)
+        .background(MC.popoverBackground)
         .sheet(isPresented: $store.showAddSheet) {
             AddClientSheet(isPresented: $store.showAddSheet)
                 .environmentObject(store)
@@ -59,90 +59,105 @@ struct RootView: View {
     }
 }
 
-struct BackgroundLayer: View {
-    var body: some View {
-        ZStack {
-            // Frosted, dark-tinted base
-            Rectangle()
-                .fill(.ultraThinMaterial)
-            LinearGradient(
-                colors: [Color.black.opacity(0.10), Color.black.opacity(0.02)],
-                startPoint: .top, endPoint: .bottom
-            )
-        }
-        .ignoresSafeArea()
-    }
-}
+// MARK: - Header
 
 struct HeaderView: View {
     @EnvironmentObject var store: DataStore
 
     var body: some View {
-        HStack(alignment: .center, spacing: 10) {
-            ZStack {
-                Circle().fill(LinearGradient(colors: [Color.purple, Color.indigo], startPoint: .topLeading, endPoint: .bottomTrailing))
-                    .frame(width: 28, height: 28)
-                Image(systemName: "scope")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(.white)
-            }
-            VStack(alignment: .leading, spacing: 0) {
-                Text("Mission Control").font(.headline)
-                Text(subtitle).font(.caption).foregroundStyle(.secondary)
-            }
+        HStack(spacing: 8) {
+            Image(systemName: "scope")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(MC.textPrimary)
+            Text("Mission Control")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(MC.textPrimary)
             Spacer()
-            let s = store.stats
-            StatPill(value: s.active, label: "active", color: .green)
-            StatPill(value: s.stale, label: "stale", color: .orange)
+            statsView
         }
-        .padding(.horizontal, 14)
+        .padding(.horizontal, MC.pad)
         .padding(.vertical, 10)
     }
 
-    var subtitle: String {
-        if let s = store.lastSync {
-            let f = RelativeDateTimeFormatter()
-            f.unitsStyle = .abbreviated
-            return "Synced \(f.localizedString(for: s, relativeTo: Date()))"
+    @ViewBuilder
+    private var statsView: some View {
+        let s = store.stats
+        HStack(spacing: 12) {
+            if s.stale > 0 {
+                statDot(count: s.stale, color: MC.stale, label: "stale")
+            }
+            statDot(count: s.active, color: MC.statusActive, label: "active")
         }
-        return "Loading…"
+    }
+
+    private func statDot(count: Int, color: Color, label: String) -> some View {
+        HStack(spacing: 4) {
+            Circle().fill(color).frame(width: 6, height: 6)
+            Text("\(count) \(label)")
+                .font(.system(size: 11))
+                .foregroundStyle(MC.textTertiary)
+        }
     }
 }
 
-struct StatPill: View {
-    let value: Int
-    let label: String
-    let color: Color
-    var body: some View {
-        HStack(spacing: 4) {
-            Circle().fill(color).frame(width: 6, height: 6)
-            Text("\(value) \(label)").font(.caption2).foregroundStyle(.secondary)
-        }
-        .padding(.horizontal, 6).padding(.vertical, 3)
-        .background(color.opacity(0.10), in: Capsule())
-    }
-}
+// MARK: - Filter Bar
 
 struct FilterBar: View {
     @EnvironmentObject var store: DataStore
 
     var body: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-            TextField("Search clients, tags, notes…", text: $store.search)
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 12))
+                .foregroundStyle(MC.textTertiary)
+                .frame(width: 14)
+            TextField("Search", text: $store.search)
                 .textFieldStyle(.plain)
+                .font(.system(size: 13))
+            if !store.search.isEmpty {
+                Button {
+                    store.search = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 11))
+                        .foregroundStyle(MC.textTertiary)
+                }
+                .buttonStyle(.plain)
+            }
+            Spacer(minLength: 4)
             Toggle(isOn: $store.showStaleOnly) { Text("Stale") }
-                .toggleStyle(.button)
-                .controlSize(.small)
-                .font(.caption)
+                .toggleStyle(MCToggleStyle())
             Button {
                 store.showAddSheet = true
             } label: {
                 Image(systemName: "plus")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(MC.textSecondary)
+                    .frame(width: 20, height: 20)
             }
-            .buttonStyle(.borderless)
+            .buttonStyle(.plain)
             .help("Add client")
         }
-        .padding(.horizontal, 14).padding(.vertical, 8)
+        .padding(.horizontal, MC.pad)
+        .padding(.vertical, 8)
+    }
+}
+
+struct MCToggleStyle: ToggleStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        Button {
+            configuration.isOn.toggle()
+        } label: {
+            configuration.label
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(configuration.isOn ? MC.textPrimary : MC.textTertiary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(
+                    RoundedRectangle(cornerRadius: MC.chipCornerRadius)
+                        .fill(configuration.isOn ? MC.textPrimary.opacity(0.10) : Color.clear)
+                )
+        }
+        .buttonStyle(.plain)
     }
 }
