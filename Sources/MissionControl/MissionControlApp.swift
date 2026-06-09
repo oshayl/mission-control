@@ -74,6 +74,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Global hotkey ⌥⌘C (Carbon API)
         registerGlobalHotkey()
 
+        // Quick capture global hotkey ⌥⌘Space
+        QuickCaptureController.shared.start()
+
         // Refresh badge whenever data changes
         refreshBadgeObserver = store.objectWillChange.sink { [weak self] _ in
             DispatchQueue.main.async {
