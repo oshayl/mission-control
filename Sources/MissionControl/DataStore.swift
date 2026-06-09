@@ -19,9 +19,12 @@ final class DataStore: ObservableObject {
     @Published var showSettings: Bool = false
     @Published var showCommandPalette: Bool = false
     @Published var showArchive: Bool = false
+    @Published var showOnboarding: Bool = false
     @Published var selectedClientID: UUID? = nil
     @Published var bulkSelectedIDs: Set<UUID> = []
     @Published var pulseAt: Date? = nil   // for icon animation when new activity arrives
+
+    let onboardingKey = "mc.onboarding.dismissed"
 
     private let appSupportURL: URL
     private let iCloudURL: URL?
@@ -332,6 +335,10 @@ final class DataStore: ObservableObject {
 
     private func seedIfEmpty() {
         guard data.clients.isEmpty else { return }
+        // Don't seed if the user has previously dismissed onboarding — respect an empty start.
+        let dismissed = UserDefaults.standard.bool(forKey: onboardingKey)
+        if !dismissed { showOnboarding = true }
+        // Always seed sample clients so the app demos nicely.
         let now = Date()
         data.clients = [
             Client(

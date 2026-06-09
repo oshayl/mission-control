@@ -40,6 +40,13 @@ struct RootView: View {
             SettingsView(isOpen: $store.showSettings)
                 .environmentObject(store)
         }
+        .sheet(isPresented: $store.showOnboarding) {
+            OnboardingSheet(isPresented: $store.showOnboarding)
+                .environmentObject(store)
+                .onDisappear {
+                    UserDefaults.standard.set(true, forKey: store.onboardingKey)
+                }
+        }
         .sheet(isPresented: $showCommandPalette) {
             CommandPalette(isOpen: $showCommandPalette)
                 .environmentObject(store)
