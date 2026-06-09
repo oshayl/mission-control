@@ -15,9 +15,27 @@ struct ClientList: View {
                         ClientRow(client: c)
                             .onTapGesture { onSelect(c) }
                             .contextMenu {
-                                Button("Open in CRM") { /* web */ }
-                                Button("iMessage") { /* opens Messages */ }
-                                Button("Copy Phone") { /* copies */ }
+                                Button("Open") { onSelect(c) }
+                                Button("Mark Contacted Now") {
+                                    if let i = store.data.clients.firstIndex(where: { $0.id == c.id }) {
+                                        store.data.clients[i].lastContact = Date()
+                                    }
+                                }
+                                Button("Snooze 7 Days") {
+                                    if let i = store.data.clients.firstIndex(where: { $0.id == c.id }) {
+                                        store.data.clients[i].lastContact = Calendar.current.date(byAdding: .day, value: -7, to: Date())
+                                    }
+                                }
+                                Divider()
+                                if let phone = c.phone, !phone.isEmpty {
+                                    Button("Call \(phone)") { openTel(phone) }
+                                }
+                                if let im = c.imessageHandle, !im.isEmpty {
+                                    Button("iMessage") { openIMessage(to: im) }
+                                }
+                                if let em = c.email, !em.isEmpty {
+                                    Button("Email") { openMail(to: em) }
+                                }
                                 Divider()
                                 Button(role: .destructive) {
                                     store.delete(id: c.id)
