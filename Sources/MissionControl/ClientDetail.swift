@@ -45,6 +45,9 @@ struct ClientDetail: View {
                     // Contact details
                     contactBlock
 
+                    // Invoices
+                    invoicesBlock
+
                     // Tags
                     tagsBlock
 
@@ -339,6 +342,61 @@ struct ClientDetail: View {
                 .textFieldStyle(.plain)
                 .font(.system(size: 12))
                 .foregroundStyle(MC.textPrimary)
+        }
+    }
+
+    // MARK: - Invoices
+
+    private var invoicesBlock: some View {
+        let invoices = InvoiceManager.shared.loadAll().filter { $0.clientID == client.id }
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                sectionLabel("INVOICES")
+                Spacer()
+                Text("last \(invoices.count)")
+                    .font(.system(size: 9.5))
+                    .foregroundStyle(MC.textTertiary)
+            }
+            if invoices.isEmpty {
+                Text("No invoices yet. Use the Invoice button above to draft one.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(MC.textTertiary)
+            } else {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(invoices.prefix(5)) { inv in
+                        HStack(alignment: .center, spacing: 8) {
+                            Text(inv.number)
+                                .font(.system(size: 11, weight: .medium, design: .monospaced))
+                                .foregroundStyle(MC.textPrimary)
+                            Text(statusLabel(inv.status))
+                                .font(.system(size: 9, weight: .semibold))
+                                .tracking(0.5)
+                                .foregroundStyle(statusColor(inv.status))
+                            Spacer()
+                            Text(String(format: "$%.0f", inv.total))
+                                .font(.system(size: 11, weight: .medium, design: .rounded).monospacedDigit())
+                                .foregroundStyle(MC.textPrimary)
+                            Text(inv.dueDate, format: .dateTime.month(.abbreviated).day())
+                                .font(.system(size: 10))
+                                .foregroundStyle(MC.textTertiary)
+                        }
+                        .padding(.vertical, 5)
+                        if inv != invoices.prefix(5).last {
+                            Divider().background(MC.hairline)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func statusLabel(_ s: String) -> String { s.uppercased() }
+    private func statusColor(_ s: String) -> Color {
+        switch s {
+        case "paid": return MC.statusActive
+        case "sent": return MC.statusShipped
+        case "overdue": return MC.stale
+        default: return MC.textTertiary
         }
     }
 

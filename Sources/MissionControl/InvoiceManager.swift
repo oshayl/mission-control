@@ -5,7 +5,7 @@
 import Foundation
 import AppKit
 
-struct InvoiceDraft: Codable, Identifiable {
+struct InvoiceDraft: Codable, Identifiable, Equatable, Hashable {
     var id: UUID = UUID()
     var number: String       // INV-YYMM-001
     var clientID: UUID
@@ -18,7 +18,7 @@ struct InvoiceDraft: Codable, Identifiable {
     var createdAt: Date = Date()
     var status: String = "draft"  // draft / sent / paid / overdue
 
-    struct LineItem: Codable, Identifiable, Hashable {
+    struct LineItem: Codable, Identifiable, Equatable, Hashable {
         var id: UUID = UUID()
         var description: String
         var quantity: Double = 1
