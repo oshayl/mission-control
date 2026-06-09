@@ -99,23 +99,26 @@ final class DataStore: ObservableObject {
     func refreshIMessageData() {
         let reader = IMessageReader.shared
         var changed = false
+        var playedSound = false
         for i in data.clients.indices {
             let client = data.clients[i]
             guard let handle = client.imessageHandle, !handle.isEmpty else { continue }
             guard let contact = reader.lastMessage(with: handle) else { continue }
-            // If message is more recent than lastContact (or lastContact is nil), update.
             if let lc = client.lastContact {
                 if contact.lastMessageAt > lc {
                     data.clients[i].lastContact = contact.lastMessageAt
+                    if contact.lastFromMe == false { playedSound = true }
                     changed = true
                 }
             } else {
                 data.clients[i].lastContact = contact.lastMessageAt
+                if contact.lastFromMe == false { playedSound = true }
                 changed = true
             }
         }
         if changed {
             objectWillChange.send()
+            if playedSound { SoundManager.shared.play(.message) }
         }
         // Refresh notifications whenever data changes
         NotificationsManager.shared.refreshStaleNotifications(clients: data.clients)
@@ -284,8 +287,9 @@ final class DataStore: ObservableObject {
 
     // MARK: - Pulse trigger
 
-    func triggerPulse() {
+    func triggerPulse(kind: SoundManager.Kind = .message) {
         pulseAt = Date()
+        SoundManager.shared.play(kind)
     }
 
     // MARK: - Derived

@@ -46,6 +46,17 @@ struct SettingsView: View {
                         }
                     }
 
+                    section("Sound") {
+                        ToggleRow(
+                            title: "Subtle sound on new activity",
+                            subtitle: "Plays a quiet system sound when an iMessage arrives or a lead comes in",
+                            isOn: Binding(
+                                get: { SoundManager.shared.enabled },
+                                set: { SoundManager.shared.setEnabled($0) }
+                            )
+                        ) { _ in }
+                    }
+
                     section("Notifications") {
                         ToggleRow(
                             title: "Stale client nudges",

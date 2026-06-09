@@ -104,7 +104,7 @@ final class WebhookServer {
         let nameEcho = name
         DispatchQueue.main.async {
             self.store?.upsert(c)
-            self.store?.triggerPulse()
+            self.store?.triggerPulse(kind: .message)
         }
         return response(200, "{\"id\":\"\(newID.uuidString)\",\"name\":\"\(nameEcho)\"}")
     }
