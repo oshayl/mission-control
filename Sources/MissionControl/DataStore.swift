@@ -19,6 +19,7 @@ final class DataStore: ObservableObject {
     private let appSupportURL: URL
     private let iCloudURL: URL?
     private var saveTimer: AnyCancellable?
+    private var imessageRefreshTimer: AnyCancellable?
 
     init() {
         let fm = FileManager.default
@@ -71,6 +72,47 @@ final class DataStore: ObservableObject {
             .sink { [weak self] _ in
                 self?.save()
             }
+        // Refresh iMessage data every 60s.
+        imessageRefreshTimer = Timer.publish(every: 60.0, on: .main, in: .common)
+            .autoconnect()
+            .sink { [weak self] _ in
+                self?.refreshIMessageData()
+            }
+        // Also refresh once on launch.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+            self?.refreshIMessageData()
+        }
+    }
+
+    // MARK: - iMessage refresh
+
+    func refreshIMessageData() {
+        let reader = IMessageReader.shared
+        var changed = false
+        for i in data.clients.indices {
+            let client = data.clients[i]
+            guard let handle = client.imessageHandle, !handle.isEmpty else { continue }
+            guard let contact = reader.lastMessage(with: handle) else { continue }
+            // If message is more recent than lastContact (or lastContact is nil), update.
+            if let lc = client.lastContact {
+                if contact.lastMessageAt > lc {
+                    data.clients[i].lastContact = contact.lastMessageAt
+                    changed = true
+                }
+            } else {
+                data.clients[i].lastContact = contact.lastMessageAt
+                changed = true
+            }
+        }
+        if changed {
+            objectWillChange.send()
+        }
+    }
+
+    /// Public lookup used by the detail view to show last iMessage preview.
+    func lastIMessage(for client: Client) -> IMessageContact? {
+        guard let h = client.imessageHandle, !h.isEmpty else { return nil }
+        return IMessageReader.shared.lastMessage(with: h)
     }
 
     private static func read<T: Decodable>(_ url: URL) -> T? {

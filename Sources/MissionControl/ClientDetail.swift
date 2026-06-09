@@ -67,6 +67,27 @@ struct ClientDetail: View {
                         .padding(6)
                     }
 
+                    // iMessage activity (auto-detected)
+                    if let lastMsg = store.lastIMessage(for: client) {
+                        GroupBox("Last iMessage") {
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack {
+                                    Text(lastMsg.lastFromMe ? "You:" : "Them:")
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(lastMsg.lastFromMe ? .blue : .green)
+                                    Spacer()
+                                    Text(lastMsg.lastMessageAt, style: .relative)
+                                        .font(.caption2).foregroundStyle(.tertiary)
+                                }
+                                Text(lastMsg.lastMessageText)
+                                    .font(.caption)
+                                    .lineLimit(3)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding(6)
+                        }
+                    }
+
                     // Quick actions
                     HStack(spacing: 6) {
                         ActionButton(title: "iMessage", system: "message.fill") {
