@@ -12,6 +12,7 @@ struct SettingsView: View {
     @State private var notificationsEnabled = false
     @State private var staleDays: Double = 14
     @State private var webhookRunning = WebhookServer.shared.running
+    @State private var backups: [URL] = []
 
     var body: some View {
         VStack(spacing: 0) {
@@ -101,6 +102,38 @@ struct SettingsView: View {
                         }
                     }
 
+                    section("Backups") {
+                        HStack {
+                            Text("Daily snapshots, last 7 kept")
+                                .font(.system(size: 11))
+                                .foregroundStyle(MC.textTertiary)
+                            Spacer()
+                            Button("Run now") { BackupManager.shared.runDailyBackup(); refreshBackups() }
+                                .buttonStyle(MCButtonStyle(variant: .secondary))
+                        }
+                        if backups.isEmpty {
+                            Text("No backups yet — one will be created on next launch.")
+                                .font(.system(size: 10.5))
+                                .foregroundStyle(MC.textTertiary)
+                        } else {
+                            VStack(alignment: .leading, spacing: 4) {
+                                ForEach(backups, id: \.self) { url in
+                                    HStack {
+                                        Image(systemName: "clock.arrow.circlepath")
+                                            .font(.system(size: 10))
+                                            .foregroundStyle(MC.textTertiary)
+                                        Text(url.lastPathComponent)
+                                            .font(.system(size: 10.5, design: .monospaced))
+                                            .foregroundStyle(MC.textPrimary)
+                                        Spacer()
+                                        Button("Restore") { restoreBackup(url) }
+                                            .buttonStyle(MCButtonStyle(variant: .ghost))
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     section("Storage") {
                         pathRow("Local", path: localPath)
                         pathRow("iCloud", path: iCloudPath)
@@ -127,6 +160,7 @@ struct SettingsView: View {
         .task {
             await checkAuth()
             staleDays = Double(store.data.settings.staleDays)
+            refreshBackups()
         }
     }
 
@@ -170,6 +204,34 @@ struct SettingsView: View {
     private func checkAuth() async {
         let settings = await UNUserNotificationCenter.current().notificationSettings()
         notificationsEnabled = settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional
+    }
+
+    private func refreshBackups() {
+        let dir = BackupManager.shared.backupDir
+        if let files = try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: [.creationDateKey]) {
+            backups = files
+                .filter { $0.pathExtension == "json" }
+                .sorted { $0.lastPathComponent > $1.lastPathComponent }
+        } else {
+            backups = []
+        }
+    }
+
+    private func restoreBackup(_ url: URL) {
+        let p = NSSearchPathForDirectoriesInDomains(.applicationSupportDirectory, .userDomainMask, true).first ?? ""
+        let dest = URL(fileURLWithPath: p).appendingPathComponent("MissionControl/mission.json")
+        do {
+            if FileManager.default.fileExists(atPath: dest.path) {
+                // Back up the current file before overwriting
+                let ts = ISO8601DateFormatter().string(from: Date())
+                let pre = dest.deletingLastPathComponent().appendingPathComponent("mission.pre-restore-\(ts).json")
+                try FileManager.default.copyItem(at: dest, to: pre)
+            }
+            try FileManager.default.copyItem(at: url, to: dest)
+            store.load()
+        } catch {
+            NSLog("Restore failed: \(error)")
+        }
     }
 
     private func openInFinder(_ path: String) {
