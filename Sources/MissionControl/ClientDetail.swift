@@ -88,6 +88,13 @@ struct ClientDetail: View {
                         }
                     }
 
+                    // GitHub activity (auto-fetched)
+                    if let g = client.githubLogin, !g.isEmpty {
+                        GitHubActivityView(login: g) {
+                            await store.githubActivity(for: client)
+                        }
+                    }
+
                     // Quick actions
                     HStack(spacing: 6) {
                         ActionButton(title: "iMessage", system: "message.fill") {

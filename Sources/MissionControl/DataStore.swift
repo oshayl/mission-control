@@ -115,6 +115,12 @@ final class DataStore: ObservableObject {
         return IMessageReader.shared.lastMessage(with: h)
     }
 
+    /// Async fetcher for GitHub activity.
+    func githubActivity(for client: Client) async -> [GitHubActivity] {
+        guard let g = client.githubLogin, !g.isEmpty else { return [] }
+        return await GitHubClient.shared.recentActivity(for: g)
+    }
+
     private static func read<T: Decodable>(_ url: URL) -> T? {
         do {
             let data = try Data(contentsOf: url)
