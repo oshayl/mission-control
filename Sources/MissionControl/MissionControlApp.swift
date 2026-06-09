@@ -75,6 +75,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Request notification permission
         Task { await NotificationsManager.shared.requestAuthorization() }
 
+        // Watch iCloud file for external edits
+        ICloudWatcher.shared.start { [weak self] in
+            guard let self = self else { return }
+            self.store.load()
+            self.flashBadge()
+        }
+
         // Refresh badge
         updateBadge()
     }
