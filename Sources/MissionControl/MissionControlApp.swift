@@ -82,6 +82,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
+        // Pulse animation when new activity arrives (pulseAt gets set)
+        pulseObserver = store.$pulseAt.sink { [weak self] at in
+            guard let self = self, let at = at, at != self.lastPulseAt else { return }
+            self.lastPulseAt = at
+            self.runPulse()
+        }
+
         // Request notification permission
         Task { await NotificationsManager.shared.requestAuthorization() }
 
@@ -100,6 +107,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private var refreshBadgeObserver: AnyCancellable?
+    private var pulseObserver: AnyCancellable?
+    private var pulseTimer: Timer?
+    private var lastPulseAt: Date? = nil
 
     @objc func showPopover() {
         guard let button = statusItem.button else { return }
@@ -160,6 +170,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
             self?.updateBadge()
             _ = original
+        }
+    }
+
+    /// Briefly swap the icon to a filled variant to signal new activity.
+    private func runPulse() {
+        guard let button = statusItem.button else { return }
+        let original = button.image
+        let accent = NSImage(systemSymbolName: "scope", accessibilityDescription: nil)
+        let filled = NSImage(systemSymbolName: "scope", accessibilityDescription: nil)
+        // Tint the filled version with the accent color for the pulse.
+        filled?.isTemplate = false
+        if let tinted = filled {
+            tinted.lockFocus()
+            NSColor.controlAccentColor.set()
+            NSRect(origin: .zero, size: tinted.size).fill(using: .sourceAtop)
+            tinted.unlockFocus()
+        }
+        button.image = filled
+        pulseTimer?.invalidate()
+        pulseTimer = Timer.scheduledTimer(withTimeInterval: 0.9, repeats: false) { [weak self] _ in
+            button.image = original
+            _ = accent
         }
     }
 
