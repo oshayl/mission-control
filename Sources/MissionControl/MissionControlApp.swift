@@ -18,8 +18,8 @@ struct MissionControlApp: App {
     }
 }
 
-@MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate {
+    @MainActor
+    final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private var popover: NSPopover!
     let store = DataStore()
@@ -144,15 +144,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         store.showSettings = true
     }
 
-    @objc func quitApp() {
+    func applicationWillTerminate(_ notification: Notification) {
         store.save()
-        NSApp.terminate(nil)
+        WebhookServer.shared.stop()
+        ICloudWatcher.shared.stop()
     }
 
     @objc func handleURLEvent(_ event: NSAppleEventDescriptor, withReply reply: NSAppleEventDescriptor) {
         guard let urlStr = event.paramDescriptor(forKeyword: AEKeyword(keyDirectObject))?.stringValue,
               let url = URL(string: urlStr) else { return }
         DeepLinkHandler.shared.handle(url)
+    }
+
+    @objc func quitApp() {
+        store.save()
+        WebhookServer.shared.stop()
+        ICloudWatcher.shared.stop()
+        NSApp.terminate(nil)
     }
 
     func updateBadge() {
