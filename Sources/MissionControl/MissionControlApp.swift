@@ -30,6 +30,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Hide dock icon — menu bar app only
         NSApp.setActivationPolicy(.accessory)
 
+        // Register deep link handler
+        DeepLinkHandler.shared.store = store
+        DeepLinkHandler.shared.appDelegate = self
+        NSAppleEventManager.shared().setEventHandler(
+            self,
+            andSelector: #selector(handleURLEvent(_:withReply:)),
+            forEventClass: AEEventClass(kInternetEventClass),
+            andEventID: AEEventID(kAEGetURL)
+        )
+
         // Status item with SF Symbol — left-click toggles popover, right-click shows menu.
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = statusItem.button {
@@ -82,6 +92,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self.flashBadge()
         }
 
+        // Start local webhook server for incoming leads (CRM integration)
+        WebhookServer.shared.start(store: store)
+
         // Refresh badge
         updateBadge()
     }
@@ -120,6 +133,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func quitApp() {
         store.save()
         NSApp.terminate(nil)
+    }
+
+    @objc func handleURLEvent(_ event: NSAppleEventDescriptor, withReply reply: NSAppleEventDescriptor) {
+        guard let urlStr = event.paramDescriptor(forKeyword: AEKeyword(keyDirectObject))?.stringValue,
+              let url = URL(string: urlStr) else { return }
+        DeepLinkHandler.shared.handle(url)
     }
 
     func updateBadge() {

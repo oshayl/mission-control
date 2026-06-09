@@ -9,50 +9,66 @@ struct ClientList: View {
     @State private var hoverID: UUID? = nil
 
     var body: some View {
-        if store.filteredClients.isEmpty {
-            EmptyState()
-        } else {
-            ScrollView {
-                LazyVStack(spacing: 0) {
-                    ForEach(store.filteredClients) { c in
-                        ClientRow(
-                            client: c,
-                            isHovered: hoverID == c.id,
-                            isSelected: store.selectedClientID == c.id
-                        )
-                        .contentShape(Rectangle())
-                        .onTapGesture { onSelect(c) }
-                        .onHover { hoverID = $0 ? c.id : (hoverID == c.id ? nil : hoverID) }
-                        .contextMenu {
-                            Button("Open") { onSelect(c) }
-                            Button("Mark Contacted Now") {
-                                if let i = store.data.clients.firstIndex(where: { $0.id == c.id }) {
-                                    store.data.clients[i].lastContact = Date()
+        VStack(spacing: 0) {
+            if store.filteredClients.isEmpty {
+                EmptyState()
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(store.filteredClients) { c in
+                            ClientRow(
+                                client: c,
+                                isHovered: hoverID == c.id,
+                                isSelected: store.selectedClientID == c.id,
+                                isBulkSelected: store.bulkSelectedIDs.contains(c.id)
+                            )
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                if NSEvent.modifierFlags.contains(.command) {
+                                    if store.bulkSelectedIDs.contains(c.id) {
+                                        store.bulkSelectedIDs.remove(c.id)
+                                    } else {
+                                        store.bulkSelectedIDs.insert(c.id)
+                                    }
+                                } else {
+                                    onSelect(c)
                                 }
                             }
-                            Button("Snooze 7 Days") {
-                                if let i = store.data.clients.firstIndex(where: { $0.id == c.id }) {
-                                    store.data.clients[i].lastContact = Calendar.current.date(byAdding: .day, value: -7, to: Date())
+                            .onHover { hoverID = $0 ? c.id : (hoverID == c.id ? nil : hoverID) }
+                            .contextMenu {
+                                Button("Open") { onSelect(c) }
+                                Button("Mark Contacted Now") {
+                                    if let i = store.data.clients.firstIndex(where: { $0.id == c.id }) {
+                                        store.data.clients[i].lastContact = Date()
+                                    }
                                 }
+                                Button("Snooze 7 Days") {
+                                    if let i = store.data.clients.firstIndex(where: { $0.id == c.id }) {
+                                        store.data.clients[i].lastContact = Calendar.current.date(byAdding: .day, value: -7, to: Date())
+                                    }
+                                }
+                                Divider()
+                                if let phone = c.phone, !phone.isEmpty {
+                                    Button("Call \(phone)") { openTel(phone) }
+                                }
+                                if let im = c.imessageHandle, !im.isEmpty {
+                                    Button("iMessage") { openIMessage(to: im) }
+                                }
+                                if let em = c.email, !em.isEmpty {
+                                    Button("Email") { openMail(to: em) }
+                                }
+                                Divider()
+                                Button(role: .destructive) {
+                                    store.delete(id: c.id)
+                                } label: { Text("Delete") }
                             }
-                            Divider()
-                            if let phone = c.phone, !phone.isEmpty {
-                                Button("Call \(phone)") { openTel(phone) }
-                            }
-                            if let im = c.imessageHandle, !im.isEmpty {
-                                Button("iMessage") { openIMessage(to: im) }
-                            }
-                            if let em = c.email, !em.isEmpty {
-                                Button("Email") { openMail(to: em) }
-                            }
-                            Divider()
-                            Button(role: .destructive) {
-                                store.delete(id: c.id)
-                            } label: { Text("Delete") }
+                            Divider().background(MC.hairline).padding(.leading, 44)
                         }
-                        Divider().background(MC.hairline).padding(.leading, 44)
                     }
                 }
+            }
+            if !store.bulkSelectedIDs.isEmpty {
+                BulkActionBar().environmentObject(store)
             }
         }
     }
@@ -62,18 +78,25 @@ struct ClientRow: View {
     let client: Client
     let isHovered: Bool
     let isSelected: Bool
+    let isBulkSelected: Bool
 
     var body: some View {
         HStack(alignment: .center, spacing: 10) {
-            // Initials — single-color block, no gradient
-            Text(client.initials.uppercased())
-                .font(.system(size: 11, weight: .semibold, design: .rounded))
-                .foregroundStyle(MC.textSecondary)
-                .frame(width: 24, height: 24)
-                .background(
-                    RoundedRectangle(cornerRadius: 4)
-                        .stroke(MC.hairline, lineWidth: 1)
-                )
+            if isBulkSelected {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 12))
+                    .foregroundStyle(MC.accent)
+                    .frame(width: 14)
+            } else {
+                Text(client.initials.uppercased())
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .foregroundStyle(MC.textSecondary)
+                    .frame(width: 24, height: 24)
+                    .background(
+                        RoundedRectangle(cornerRadius: 4)
+                            .stroke(MC.hairline, lineWidth: 1)
+                    )
+            }
 
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
@@ -124,7 +147,8 @@ struct ClientRow: View {
 
     private var rowBackground: some View {
         Group {
-            if isSelected { MC.rowSelected }
+            if isBulkSelected { MC.rowSelected }
+            else if isSelected { MC.rowSelected }
             else if isHovered { MC.rowHover }
             else { Color.clear }
         }

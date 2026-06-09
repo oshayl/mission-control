@@ -15,6 +15,9 @@ struct RootView: View {
             FilterBar()
                 .environmentObject(store)
             Divider().background(MC.hairline)
+            FilterChips()
+                .environmentObject(store)
+            Divider().background(MC.hairline)
             if let selID = store.selectedClientID,
                let binding = bindingForClient(id: selID) {
                 ClientDetail(client: binding, onBack: { store.selectedClientID = nil })
@@ -85,6 +88,9 @@ struct HeaderView: View {
         HStack(spacing: 12) {
             if s.stale > 0 {
                 statDot(count: s.stale, color: MC.stale, label: "stale")
+            }
+            if s.dueThisWeek > 0 {
+                statDot(count: s.dueThisWeek, color: MC.accent, label: "due")
             }
             statDot(count: s.active, color: MC.statusActive, label: "active")
         }
