@@ -16,7 +16,7 @@ final class ICloudWatcher {
     func start(onChange: @escaping () -> Void) {
         guard query == nil else { return }
         guard let ubiquity = FileManager.default.url(forUbiquityContainerIdentifier: nil) else {
-            NSLog("ICloudWatcher: no ubiquity container available")
+            NSLog("ICloudWatcher: no ubiquity container — sync via local file only")
             return
         }
         let q = NSMetadataQuery()
@@ -36,6 +36,9 @@ final class ICloudWatcher {
         ) { [weak self] _ in
             self?.debounce(onChange: onChange)
         }
+        // Silently absorb initial gathering updates — only act on changes after the
+        // initial state is loaded, otherwise we trigger spurious reloads at launch.
+        q.gatheringThreshold = NSMetadataQueryGatheringThresholdOne
         q.start()
         self.query = q
         NSLog("ICloudWatcher: watching \(ubiquity.path)/Documents/mission.json")
